@@ -178,4 +178,6 @@ tbody tr:hover { background: var(--surface-2); }
 .bar-fill.green { background: linear-gradient(90deg, #1a8a5a, var(--green)); }
 .bar-fill.cyan { background: linear-gradient(90deg, #0d8a9a, #2dd4bf); }
 .bar-fill.orange { background: linear-gradient(90deg, #c97d4a, var(--bronze)); }
-\n.bar-fill.pink { background: linear-gradient(90deg, #a21caf, #d946ef); }\n
+
+.bar-fill.pink { background: linear-gradient(90deg, #a21caf, #d946ef); }
+.bar-fill.purple { background: linear-gradient(90deg, #7c3aed, #a78bfa); }

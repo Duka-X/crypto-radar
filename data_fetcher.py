@@ -17,7 +17,14 @@ def _vol_expand(sp):
 
 def _dev_score(data):
     dd = (data.get("developer_data") or {}) or {}
-    return float(dd.get("stars", 0) or 0) * 0.5 + float(dd.get("forks", 0) or 0) * 0.2
+    score = float(dd.get("stars", 0) or 0) * 0.5 + float(dd.get("forks", 0) or 0) * 0.2
+    # Fallback: use community metrics when developer_data is missing
+    if score == 0:
+        cd = (data.get("community_data") or {}) or {}
+        score = (float(cd.get("twitter_followers", 0) or 0) * 0.002
+                 + float(cd.get("reddit_subscribers", 0) or 0) * 0.005
+                 + float(cd.get("telegram_channel_user_count", 0) or 0) * 0.003)
+    return score
 
 class CoinGeckoFetcher:
     def __init__(self):
@@ -69,7 +76,7 @@ class CoinGeckoFetcher:
             try:
                 r = self.s.get(f"{COINGECKO_BASE}/coins/{cid}", params={
                     "localization":"false", "tickers":"false", "market_data":"false",
-                    "community_data":"false", "developer_data":"true", "sparkline":"false"}, timeout=15)
+                    "community_data":"true", "developer_data":"true", "sparkline":"false"}, timeout=15)
                 if r.status_code == 200: out[cid] = {"community_score": _dev_score(r.json())}
                 else: print(f"[CG] Dev {cid}: {r.status_code}")
             except Exception as e: print(f"[CG] Dev {cid}: {e}")
