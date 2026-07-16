@@ -1,3 +1,4 @@
+import math
 import requests, time
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
@@ -24,6 +25,9 @@ def _dev_score(data):
         score = (float(cd.get("twitter_followers", 0) or 0) * 0.002
                  + float(cd.get("reddit_subscribers", 0) or 0) * 0.005
                  + float(cd.get("telegram_channel_user_count", 0) or 0) * 0.003)
+    # Log-scale: compress extreme values so developer_data doesn't dominate normalization
+    if score > 0:
+        score = math.log(1 + score / 50) * 50
     return score
 
 class CoinGeckoFetcher:
