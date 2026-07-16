@@ -1,9 +1,13 @@
 class SignalScorer:
     WEIGHTS = {"trending_score":0.20,"price_change_24h":0.15,"momentum_score":0.20,"volume_score":0.25,"community_score":0.20}
     def _n(self,v):
-        if not v: return []; mn,mx=min(v),max(v)
-        if mx==mn: return [0.0]*len(v)
-        return [(x-mn)/(mx-mn)*100 for x in v]
+        if not v:
+            return []
+        mn = min(v)
+        mx = max(v)
+        if mx == mn:
+            return [0.0] * len(v)
+        return [(x - mn) / (mx - mn) * 100 for x in v]
     def _f(self,x):
         try: return float(x) if x is not None else 0.0
         except: return 0.0
