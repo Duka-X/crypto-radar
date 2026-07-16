@@ -185,7 +185,7 @@ async def token_chart(token_id: str, days: int = 7):
         r = __import__("requests").get(
             f"https://api.coingecko.com/api/v3/coins/{token_id}/market_chart",
             params={"vs_currency": "usd", "days": days},
-            timeout=15,
+            timeout=30,
             headers={"Accept": "application/json", "User-Agent": "CryptoRadar/1.0"}
         )
         if r.status_code == 200:
