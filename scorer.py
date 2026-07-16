@@ -1,3 +1,4 @@
+import math
 class SignalScorer:
     WEIGHTS = {"trending_score":0.20,"price_change_24h":0.15,"momentum_score":0.20,"volume_score":0.25,"community_score":0.20}
     def _n(self,v):
@@ -17,7 +18,10 @@ class SignalScorer:
         rp=[self._f(c.get("price_change_percentage_24h",0)) for c in coins]
         rm=[self._f(c.get("momentum_score",0)) for c in coins]
         rv=[min(self._f(c.get("total_volume",0))/max(self._f(c.get("market_cap",0)),1)*100,100) if self._f(c.get("market_cap",0))>0 else 0 for c in coins]
-        rc=[self._f(c.get("community_score",0)) for c in coins]
+        rc_dev=[self._f(c.get("community_score",0)) for c in coins]
+        rc_reddit=[self._f(c.get("reddit_mentions",0)) for c in coins]
+        rc_reddit_log = [math.log(1 + max(r, 0)) * 2 for r in rc_reddit]
+        rc = [d + r for d, r in zip(rc_dev, rc_reddit_log)]
         nt=self._n(rt);np_=self._n([abs(x) for x in rp]);nm=self._n(rm);nv=self._n(rv);nc=self._n(rc)
         "# Soften community extremes: map [0,100] to [5,95] so no coin gets absolute 0"
         nc = [5 + x * 0.9 for x in nc]

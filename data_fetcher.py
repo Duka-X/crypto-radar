@@ -1,5 +1,6 @@
 import math
 import requests, time
+from reddit_fetcher import RedditFetcher
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 
@@ -93,6 +94,14 @@ class CoinGeckoFetcher:
         ids = [c["id"] for c in trend if c["id"]]
         prices = self.get_prices(ids)
         dev = self.get_dev_data(ids)
+        # Reddit mentions
+        try:
+            reddit = RedditFetcher()
+            reddit_count = reddit.fetch_mentions(trend)
+        except Exception as e:
+            print(f"[Reddit] Error: {e}")
+            reddit_count = {}
+
         out = []
         for coin in trend:
             cid = coin["id"]
@@ -103,5 +112,5 @@ class CoinGeckoFetcher:
                 "price_change_percentage_24h": pi.get("price_change_percentage_24h",0),
                 "sparkline_prices": pi.get("sparkline_prices",[]),
                 "momentum_score": _vol_expand(pi.get("sparkline_full",[])),
-                "community_score": dev.get(cid, {}).get("community_score",0)})
+                "community_score": dev.get(cid, {}).get("community_score",0), "reddit_mentions": reddit_count.get(coin["name"], 0)})
         return out

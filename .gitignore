@@ -4,7 +4,6 @@ data/rankings.db
 app.log
 venv/
 
-reddit_fetcher.py
 trends_fetcher.py
 start.bat
 start.vbs
