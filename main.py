@@ -120,7 +120,7 @@ async def refresh_data():
     try:
         fetcher = CoinGeckoFetcher()
         scorer = SignalScorer()
-        raw = fetcher.fetch_all()
+        raw = await asyncio.to_thread(fetcher.fetch_all)
         if raw:
             coins = scorer.score(raw)
             save_snapshot(coins)
@@ -181,7 +181,7 @@ async def _background_refresher():
         try:
             fetcher = CoinGeckoFetcher()
             scorer = SignalScorer()
-            raw = fetcher.fetch_all()
+            raw = await asyncio.to_thread(fetcher.fetch_all)
             if raw:
                 coins = scorer.score(raw)
                 save_snapshot(coins)
