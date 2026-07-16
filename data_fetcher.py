@@ -1,8 +1,43 @@
-import math
+import math, json
 import requests, time
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from reddit_fetcher import RedditFetcher
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
+
+MENTIONS_FILE = Path(__file__).parent / "data" / "reddit_mentions.json"
+
+
+def _save_mention_snapshot(mention_counts):
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        if MENTIONS_FILE.exists():
+            data = json.loads(MENTIONS_FILE.read_text())
+        else:
+            data = []
+        data.append({"ts": now, "mentions": mention_counts})
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+        data = [r for r in data if r["ts"] > cutoff]
+        MENTIONS_FILE.write_text(json.dumps(data))
+    except Exception as e:
+        print(f"[Mentions] Save error: {e}")
+
+
+def _get_rolling_24h(coin_name):
+    try:
+        if not MENTIONS_FILE.exists():
+            return 0
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        data = json.loads(MENTIONS_FILE.read_text())
+        total = 0
+        for record in data:
+            if record["ts"] > cutoff:
+                total += record["mentions"].get(coin_name, 0)
+        return total
+    except:
+        return 0
+
 
 def _vol_expand(sp):
     if not sp or len(sp) < 48: return 0.0
@@ -98,6 +133,7 @@ class CoinGeckoFetcher:
         try:
             reddit = RedditFetcher()
             reddit_count = reddit.fetch_mentions(trend)
+            _save_mention_snapshot(reddit_count)
         except Exception as e:
             print(f"[Reddit] Error: {e}")
             reddit_count = {}
@@ -112,5 +148,5 @@ class CoinGeckoFetcher:
                 "price_change_percentage_24h": pi.get("price_change_percentage_24h",0),
                 "sparkline_prices": pi.get("sparkline_prices",[]),
                 "momentum_score": _vol_expand(pi.get("sparkline_full",[])),
-                "community_score": dev.get(cid, {}).get("community_score",0), "reddit_mentions": reddit_count.get(coin["name"], 0)})
+                "community_score": dev.get(cid, {}).get("community_score",0), "reddit_mentions": _get_rolling_24h(coin["name"])})
         return out

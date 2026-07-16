@@ -7,3 +7,5 @@ venv/
 trends_fetcher.py
 start.bat
 start.vbs
+
+data/reddit_mentions.json
