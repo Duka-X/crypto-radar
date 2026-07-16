@@ -31,4 +31,6 @@
 <footer class=footer><div class=container><p>Data from <a href=https://www.coingecko.com target=_blank>CoinGecko</a> &middot; Auto-refresh hourly</p></div></footer>
 <script>
 async function refreshData(){var b=document.getElementById("refresh-btn"),t=document.getElementById("refresh-toast");b.disabled=!0;b.textContent="Loading...";t.classList.remove("hidden");t.textContent="Fetching...";try{var r=await fetch("/refresh",{method:"POST"}),d=await r.json();d.status==="ok"?(t.textContent="Reloading...",setTimeout(function(){location.reload()},800)):(t.textContent="Error: "+(d.message||"?"),b.disabled=!1,b.textContent="Refresh",setTimeout(function(){t.classList.add("hidden")},4000))}catch(e){t.textContent="Network error",b.disabled=!1,b.textContent="Refresh",setTimeout(function(){t.classList.add("hidden")},4000)}}
+// Auto-reload when no data yet (first load or empty DB)
+if(document.querySelector(".empty")){setTimeout(function(){location.reload()},15000)}
 </script></body></html>
