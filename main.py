@@ -141,6 +141,19 @@ async def api_rankings():
     coins = load_latest_snapshot()
     return coins if coins else []
 
+@app.get("/debug")
+async def debug_snapshot():
+    coins = load_latest_snapshot()
+    if not coins:
+        return {"error": "no data"}
+    c = coins[0]
+    return {
+        "name": c.get("name"),
+        "sparkline_prices_len": len(c.get("sparkline_prices", []) or []),
+        "sparkline_full_len": len(c.get("sparkline_full", []) or []),
+        "sparkline_sample": (c.get("sparkline_prices", []) or [])[:3]
+    }
+
 
 @app.get("/token/{token_id}", response_class=HTMLResponse)
 async def token_detail(request: Request, token_id: str):
