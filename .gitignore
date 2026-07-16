@@ -1,0 +1,5 @@
+﻿__pycache__/
+*.pyc
+data/rankings.db
+app.log
+venv/
