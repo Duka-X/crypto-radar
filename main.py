@@ -99,15 +99,7 @@ async def index(request: Request):
     global _last_refresh_time
     coins = load_latest_snapshot()
     if not coins:
-        fetcher = CoinGeckoFetcher()
-        scorer = SignalScorer()
-        raw = fetcher.fetch_all()
-        if raw:
-            coins = scorer.score(raw)
-            save_snapshot(coins)
-            _last_refresh_time = datetime.now(timezone.utc)
-        else:
-            coins = []
+        coins = []
     trending_up = sum(1 for c in coins if (c.get("price_change_percentage_24h") or 0) > 0)
     trending_down = len(coins) - trending_up
 
