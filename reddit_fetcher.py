@@ -25,65 +25,62 @@ class RedditFetcher:
         self.last_call = time.time()
 
     def fetch_mentions(self, coins: list[dict]) -> dict[str, int]:
-        """Fetch Reddit mentions for each coin.
-        
-        coins: list of dicts with at least "name" and "symbol" keys.
-        Returns dict mapping coin name -> mention count across posts.
-        Matches both full name (substring) and ticker symbol (word-boundary regex).
+        """Fetch Reddit mentions across multiple subreddits and post types.
+        Covers 5 subreddits x 2 feed types (hot + new) = 10 sources.
+        Returns dict mapping coin name -> total mention count.
         """
         mentions = {c["name"]: 0 for c in coins}
-        subs = ["CryptoCurrency", "CryptoMarkets", "SatoshiStreetBets"]
-        
+        subs = ["CryptoCurrency", "CryptoMarkets", "SatoshiStreetBets", "altcoin", "CryptoMoonShots"]
+
         for sub in subs:
-            self._rate_limit()
-            try:
-                r = self.session.get(
-                    f"{self.BASE}/r/{sub}/hot.json",
-                    params={"limit": 100, "raw_json": 1},
-                    timeout=10,
-                )
-                if r.status_code == 429:
-                    print(f"[Reddit] Rate limited on r/{sub}, sleeping 60s")
-                    time.sleep(60)
-                    continue
-                if r.status_code != 200:
-                    print(f"[Reddit] r/{sub} returned {r.status_code}")
-                    continue
-                
-                posts = r.json().get("data", {}).get("children", [])
-                matched = 0
-                for post in posts:
-                    post_data = post.get("data", {})
-                    text = (
-                        (post_data.get("title", "") or "") + " " +
-                        (post_data.get("selftext", "") or "")
-                    ).lower()
-                    
-                    for c in coins:
-                        name = c["name"]
-                        symbol = c.get("symbol", "").upper()
-                        matched_this = False
-                        
-                        # Match by full name (substring, e.g. "bitcoin" matches "bitcoin")
-                        if name.lower() in text:
-                            mentions[name] += 1
-                            matched += 1
-                            matched_this = True
-                        
-                        # Match by symbol (word-boundary, e.g. "BTC", "$BTC")
-                        if not matched_this and len(symbol) >= 3:
-                            if re.search(
-                                r"(?:\$|\b)" + re.escape(symbol) + r"\b",
-                                text, re.IGNORECASE
-                            ):
+            for feed_type in ["hot", "new"]:
+                self._rate_limit()
+                try:
+                    r = self.session.get(
+                        f"{self.BASE}/r/{sub}/{feed_type}.json",
+                        params={"limit": 100, "raw_json": 1},
+                        timeout=10,
+                    )
+                    if r.status_code == 429:
+                        print(f"[Reddit] Rate limited on r/{sub}/{feed_type}, sleeping 60s")
+                        time.sleep(60)
+                        continue
+                    if r.status_code != 200:
+                        print(f"[Reddit] r/{sub}/{feed_type} returned {r.status_code}")
+                        continue
+
+                    posts = r.json().get("data", {}).get("children", [])
+                    matched = 0
+                    for post in posts:
+                        post_data = post.get("data", {})
+                        text = (
+                            (post_data.get("title", "") or "") + " " +
+                            (post_data.get("selftext", "") or "")
+                        ).lower()
+
+                        for c in coins:
+                            name = c["name"]
+                            symbol = c.get("symbol", "").upper()
+                            matched_this = False
+
+                            if name.lower() in text:
                                 mentions[name] += 1
                                 matched += 1
-                
-                print(f"[Reddit] r/{sub}: {matched} mentions across {len(posts)} posts")
-                    
-            except Exception as e:
-                print(f"[Reddit] Error fetching r/{sub}: {e}")
-        
+                                matched_this = True
+
+                            if not matched_this and len(symbol) >= 3:
+                                if re.search(
+                                    r"(?:\$|)" + re.escape(symbol) + r"",
+                                    text, re.IGNORECASE
+                                ):
+                                    mentions[name] += 1
+                                    matched += 1
+
+                    print(f"[Reddit] r/{sub}/{feed_type}: {matched} mentions across {len(posts)} posts")
+
+                except Exception as e:
+                    print(f"[Reddit] Error fetching r/{sub}/{feed_type}: {e}")
+
         active = {k: v for k, v in mentions.items() if v > 0}
         print(f"[Reddit] Total coins with mentions: {len(active)}/{len(coins)}")
         return mentions
