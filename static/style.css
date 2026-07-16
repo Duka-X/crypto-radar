@@ -66,11 +66,11 @@ tbody tr:hover { background: var(--surface-2); }
 .rank-1 { background: var(--gold); color: #000; }
 .rank-2 { background: var(--silver); color: #000; }
 .rank-3 { background: var(--bronze); color: #fff; }
-.col-coin { min-width: 160px; display: flex; align-items: center; gap: 10px; }
-.coin-icon { border-radius: 50%; flex-shrink: 0; }
-.coin-info { display: flex; flex-direction: column; }
-.coin-name { font-weight: 600; font-size: 0.9rem; }
-.coin-symbol { font-size: 0.75rem; color: var(--text-secondary); }
+.col-coin { min-width: 160px; white-space: nowrap; }
+.coin-icon { border-radius: 50%; vertical-align: middle; margin-right: 6px; }
+.coin-info { display: inline; }
+.coin-name { font-weight: 600; font-size: 0.9rem; vertical-align: middle; }
+.coin-symbol { font-size: 0.75rem; color: var(--text-secondary); vertical-align: middle; margin-left: 4px; }
 .col-price { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .change { font-weight: 600; font-variant-numeric: tabular-nums; }
 .positive { color: var(--green); }
