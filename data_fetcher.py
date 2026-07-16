@@ -146,7 +146,8 @@ class CoinGeckoFetcher:
                 "current_price": pi.get("current_price",0), "market_cap": pi.get("market_cap",0),
                 "total_volume": pi.get("total_volume",0),
                 "price_change_percentage_24h": pi.get("price_change_percentage_24h",0),
-                "sparkline_prices": pi.get("sparkline_prices",[]),
+               "sparkline_prices": pi.get("sparkline_prices",[]),
+                "sparkline_full": pi.get("sparkline_full",[]),
                 "momentum_score": _vol_expand(pi.get("sparkline_full",[])),
                 "community_score": dev.get(cid, {}).get("community_score",0), "reddit_mentions": _get_rolling_24h(coin["name"])})
         return out

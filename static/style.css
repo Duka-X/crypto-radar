@@ -181,3 +181,5 @@ tbody tr:hover { background: var(--surface-2); }
 
 .bar-fill.pink { background: linear-gradient(90deg, #a21caf, #d946ef); }
 .bar-fill.purple { background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+
+.chart-toolbar{display:flex;gap:8px;margin-bottom:12px}.chart-btn{background:var(--surface-2);color:var(--text-secondary);border:1px solid var(--border);padding:4px 14px;border-radius:4px;font-size:.75rem;cursor:pointer;font-weight:600;transition:all .15s}.chart-btn:hover{background:var(--surface);color:var(--text)}.chart-btn.active{background:var(--accent);color:#fff;border-color:var(--accent)}

@@ -166,6 +166,21 @@ async def api_token_history(token_id: str):
     return get_token_history(token_id)
 
 
+@app.get("/api/token/{token_id}/chart")
+async def token_chart(token_id: str, days: int = 7):
+    try:
+        r = __import__("requests").get(
+            f"https://api.coingecko.com/api/v3/coins/{token_id}/market_chart",
+            params={"vs_currency": "usd", "days": days},
+            timeout=15,
+            headers={"Accept": "application/json", "User-Agent": "CryptoRadar/1.0"}
+        )
+        if r.status_code == 200:
+            return r.json()
+        return {"error": f"API returned {r.status_code}"}
+    except Exception as e:
+        return {"error": str(e)}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
