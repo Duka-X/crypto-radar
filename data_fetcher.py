@@ -18,22 +18,17 @@ def _vol_expand(sp):
 
 def _dev_score(data):
     dd = (data.get("developer_data") or {}) or {}
-    score = float(dd.get("stars", 0) or 0) * 0.5 + float(dd.get("forks", 0) or 0) * 0.2
-    # Fallback: use community metrics when developer_data is missing
-    if score == 0:
-        cd = (data.get("community_data") or {}) or {}
-        score = (float(cd.get("twitter_followers", 0) or 0) * 0.002
-                 + float(cd.get("reddit_subscribers", 0) or 0) * 0.005
-                 + float(cd.get("telegram_channel_user_count", 0) or 0) * 0.003)
-    # Fallback: use market_cap_rank as community proxy when no other data available
-    if score == 0:
-        mcr = data.get('market_cap_rank')
-        if mcr and mcr > 0:
-            score = 5000 / mcr
-
-    # Log-scale: compress extreme values so developer_data doesn't dominate normalization
+    commits = float(dd.get("commit_count_4_weeks", 0) or 0)
+    code = dd.get("code_additions_deletions_4_weeks") or {}
+    if isinstance(code, dict):
+        a = float(code.get("additions", 0) or 0)
+        d = float(code.get("deletions", 0) or 0)
+        code_churn = abs(a) + abs(d)
+    else:
+        code_churn = float(code or 0)
+    score = commits * 5 + code_churn * 0.005
     if score > 0:
-        score = math.log(1 + score / 50) * 50
+        score = math.log(1 + score / 10) * 10
     return score
 
 class CoinGeckoFetcher:
