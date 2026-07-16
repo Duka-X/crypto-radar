@@ -25,6 +25,12 @@ def _dev_score(data):
         score = (float(cd.get("twitter_followers", 0) or 0) * 0.002
                  + float(cd.get("reddit_subscribers", 0) or 0) * 0.005
                  + float(cd.get("telegram_channel_user_count", 0) or 0) * 0.003)
+    # Fallback: use market_cap_rank as community proxy when no other data available
+    if score == 0:
+        mcr = data.get('market_cap_rank')
+        if mcr and mcr > 0:
+            score = 5000 / mcr
+
     # Log-scale: compress extreme values so developer_data doesn't dominate normalization
     if score > 0:
         score = math.log(1 + score / 50) * 50

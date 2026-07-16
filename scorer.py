@@ -15,6 +15,8 @@ class SignalScorer:
         rv=[min(self._f(c.get("total_volume",0))/max(self._f(c.get("market_cap",0)),1)*100,100) if self._f(c.get("market_cap",0))>0 else 0 for c in coins]
         rc=[self._f(c.get("community_score",0)) for c in coins]
         nt=self._n(rt);np_=self._n([abs(x) for x in rp]);nm=self._n(rm);nv=self._n(rv);nc=self._n(rc)
+        "# Soften community extremes: map [0,100] to [5,95] so no coin gets absolute 0"
+        nc = [5 + x * 0.9 for x in nc]
         scored=[]
         for i,c in enumerate(coins):
             s=nt[i]*0.20+np_[i]*0.15+nm[i]*0.20+nv[i]*0.25+nc[i]*0.20
