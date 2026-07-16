@@ -22,6 +22,7 @@ DB_PATH = BASE_DIR / "data" / "rankings.db"
 # --- Database helpers ---
 
 def init_db():
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     c = conn.cursor()
     c.execute("""
