@@ -142,7 +142,7 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
 def _patch_community(coins):
-    """Recalculate score_community for all coins (shared by / and /api/rankings)."""
+    """Recalculate score_community for all coins using rank-based scoring (0-100)."""
     if not coins:
         return
     try:
@@ -151,14 +151,12 @@ def _patch_community(coins):
             dev = float(coin.get("community_score", 0) or 0)
             mc = float(coin.get("market_cap", 0) or 1)
             proxy = math.log(1 + abs(mc)) * 0.05
-            scores.append(dev + proxy)
-        mn, mx = min(scores), max(scores)
-        if mx > mn:
-            scores = [5 + (s - mn) / (mx - mn) * 90 for s in scores]
-        else:
-            scores = [50] * len(scores)
-        for i, coin in enumerate(coins):
-            coin["score_community"] = round(scores[i], 1)
+            scores.append(round(dev + proxy, 4))
+        # Rank-based scoring: evenly spread from 5 to 95
+        order = sorted(range(len(scores)), key=lambda i: scores[i])
+        for rank_pos, idx in enumerate(order):
+            c_val = round(5 + (rank_pos / (len(coins) - 1)) * 90, 1)
+            coins[idx]["score_community"] = c_val
     except:
         pass
 
