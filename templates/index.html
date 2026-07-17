@@ -7,7 +7,7 @@
 <section class=rankings><div class=table-wrapper><table>
 <thead><tr><th class=col-rank>#</th><th class=col-coin>Coin</th><th class=col-price>Price</th><th class=col-change>24h%</th><th class=col-sparkle>Chart</th><th class=col-score>Score</th><th class=col-breakdown>Sig</th></tr></thead>
 <tbody>{% for coin in coins %}
-<tr><td class=col-rank>{% if coin.rank==1 %}<span class="rank rank-1">1</span>{% elif coin.rank==2 %}<span class="rank rank-2">2</span>{% elif coin.rank==3 %}<span class="rank rank-3">3</span>{% else %}<span class=rank>{{ coin.rank }}</span>{% endif %}</td>
+<tr data-idx="{{ loop.index0 }}"><td class=col-rank>{% if coin.rank==1 %}<span class="rank rank-1">1</span>{% elif coin.rank==2 %}<span class="rank rank-2">2</span>{% elif coin.rank==3 %}<span class="rank rank-3">3</span>{% else %}<span class=rank>{{ coin.rank }}</span>{% endif %}</td>
 <td class=col-coin>{% if coin.thumb %}<img src="{{ coin.thumb }}" alt="" width=24 height=24 class=coin-icon>{% endif %}<div class=coin-info><a href=/token/{{ coin.id }} class=coin-name>{{ coin.name }}</a><span class=coin-symbol>{{ coin.symbol }}</span></div></td>
 <td class=col-price>{% if coin.current_price and coin.current_price>0 %}${{ "%.4f"|format(coin.current_price) if coin.current_price<0.01 else "%.2f"|format(coin.current_price) }}{% else %}&mdash;{% endif %}</td>
 <td class=col-change>{% if coin.price_change_percentage_24h is not none %}<span class="change {% if coin.price_change_percentage_24h>=0 %}positive{% else %}negative{% endif %}">{{ "%+.2f"|format(coin.price_change_percentage_24h) }}%</span>{% else %}&mdash;{% endif %}</td>
