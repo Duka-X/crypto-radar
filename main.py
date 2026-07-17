@@ -198,34 +198,28 @@ async def api_rankings():
             for token_id, vals in latest.items():
                 if token_id == "ts": continue
                 if isinstance(vals, dict):
-                    # Recalculate community_raw from raw counts (log-scaled)
                     tf = float(vals.get("twitter",0) or 0)
                     tg = float(vals.get("telegram",0) or 0)
                     rs = float(vals.get("reddit",0) or 0)
-                    from math import log
-                    comm_raw[token_id] = log(1 + tf) * 0.05 + log(1 + tg) * 0.08 + log(1 + rs) * 0.1
-    # Calculate C: dev_score + community_raw + growth_bonus
-    all_c = []
-    for coin in coins:
-        cid = coin.get("id","")
-        dev = coin.get("community_score",0) or 0
-        raw = comm_raw.get(cid, 0)
-        g = growth.get(cid, 0)
-        # Growth with threshold: only give meaningful bonus if growth > 5%
-        g_bonus = max(0, g / 20) if g > 5 else 0
-        all_c.append(dev + raw + g_bonus)
-    if all_c:
-        mn, mx = min(all_c), max(all_c)
+                    comm_raw[token_id] = math.log(1 + tf) * 0.05 + math.log(1 + tg) * 0.08 + math.log(1 + rs) * 0.1
+    # Normalize dev_score and community_raw SEPARATELY to [0, 50] each, then add
+    dev_scores = [coin.get("community_score",0) or 0 for coin in coins]
+    raw_scores = [comm_raw.get(coin.get("id",""), 0) for coin in coins]
+    def to_range(vals, hi):
+        mn, mx = min(vals), max(vals)
         if mx > mn:
-            all_c_norm = [5 + (x - mn) / (mx - mn) * 90 for x in all_c]
-        else:
-            all_c_norm = [50 for _ in all_c]
-    else:
-        all_c_norm = []
+            return [(v - mn) / (mx - mn) * hi for v in vals]
+        return [hi/2 for _ in vals]
+    dev_norm = to_range(dev_scores, 50)
+    raw_norm = to_range(raw_scores, 50)
+    # Add growth bonus on top
     for i, coin in enumerate(coins):
         cid = coin.get("id","")
-        coin["community_growth"] = growth.get(cid, 0)
-        coin["score_community"] = round(all_c_norm[i], 1) if i < len(all_c_norm) else 5
+        g = growth.get(cid, 0)
+        g_bonus = g / 20 if g > 5 else 0
+        combined = dev_norm[i] + raw_norm[i] + g_bonus
+        coin["community_growth"] = g
+        coin["score_community"] = round(combined, 1)
     return coins
 
 @app.get("/debug")
