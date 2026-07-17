@@ -141,12 +141,34 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
+def _patch_community(coins):
+    """Recalculate score_community for all coins (shared by / and /api/rankings)."""
+    if not coins:
+        return
+    try:
+        scores = []
+        for coin in coins:
+            dev = float(coin.get("community_score", 0) or 0)
+            mc = float(coin.get("market_cap", 0) or 1)
+            proxy = math.log(1 + abs(mc)) * 0.05
+            scores.append(dev + proxy)
+        mn, mx = min(scores), max(scores)
+        if mx > mn:
+            scores = [5 + (s - mn) / (mx - mn) * 90 for s in scores]
+        else:
+            scores = [50] * len(scores)
+        for i, coin in enumerate(coins):
+            coin["score_community"] = round(scores[i], 1)
+    except:
+        pass
+
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
     global _last_refresh_time
     coins = load_latest_snapshot()
     if not coins:
         coins = []
+    _patch_community(coins)
     trending_up = sum(1 for c in coins if (c.get("price_change_percentage_24h") or 0) > 0)
     trending_down = len(coins) - trending_up
 
