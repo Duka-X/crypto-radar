@@ -189,7 +189,31 @@ async def api_rankings():
     if not coins:
         return []
     growth = get_latest_growth()
-    all_c = [(coin.get("community_score",0) or 0) + (growth.get(coin.get("id",""), 0) or 0) for coin in coins]
+    # Get latest community raw data from the most recent snapshot
+    comm_raw = {}
+    if COMMUNITY_DATA.exists():
+        snapshots = json.loads(COMMUNITY_DATA.read_text())
+        if snapshots:
+            latest = snapshots[-1]
+            for token_id, vals in latest.items():
+                if token_id == "ts": continue
+                if isinstance(vals, dict):
+                    # Recalculate community_raw from raw counts (log-scaled)
+                    tf = float(vals.get("twitter",0) or 0)
+                    tg = float(vals.get("telegram",0) or 0)
+                    rs = float(vals.get("reddit",0) or 0)
+                    from math import log
+                    comm_raw[token_id] = log(1 + tf) * 0.05 + log(1 + tg) * 0.08 + log(1 + rs) * 0.1
+    # Calculate C: dev_score + community_raw + growth_bonus
+    all_c = []
+    for coin in coins:
+        cid = coin.get("id","")
+        dev = coin.get("community_score",0) or 0
+        raw = comm_raw.get(cid, 0)
+        g = growth.get(cid, 0)
+        # Growth with threshold: only give meaningful bonus if growth > 5%
+        g_bonus = max(0, g / 20) if g > 5 else 0
+        all_c.append(dev + raw + g_bonus)
     if all_c:
         mn, mx = min(all_c), max(all_c)
         if mx > mn:
@@ -199,8 +223,8 @@ async def api_rankings():
     else:
         all_c_norm = []
     for i, coin in enumerate(coins):
-        g = growth.get(coin.get("id",""), 0)
-        coin["community_growth"] = g
+        cid = coin.get("id","")
+        coin["community_growth"] = growth.get(cid, 0)
         coin["score_community"] = round(all_c_norm[i], 1) if i < len(all_c_norm) else 5
     return coins
 
