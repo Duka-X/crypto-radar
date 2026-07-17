@@ -185,56 +185,69 @@ async def api_last_refresh():
 
 @app.get("/api/rankings")
 async def api_rankings():
-    coins = load_latest_snapshot()
-    if not coins:
-        return []
-    growth = get_latest_growth()
-    # Get community data: poller snapshot first, then DB fallback, then market_cap proxy
-    comm_raw = {}
-    if COMMUNITY_DATA.exists():
-        snapshots = json.loads(COMMUNITY_DATA.read_text())
-        if snapshots:
-            latest = snapshots[-1]
-            for token_id, vals in latest.items():
-                if token_id == "ts": continue
-                if isinstance(vals, dict):
-                    tf = float(vals.get("twitter",0) or 0)
-                    tg = float(vals.get("telegram",0) or 0)
-                    rs = float(vals.get("reddit",0) or 0)
-                    comm_raw[token_id] = math.log(1 + tf) * 0.05 + math.log(1 + tg) * 0.08 + math.log(1 + rs) * 0.1
-    for coin in coins:
-        cid = coin.get("id","")
-        if cid not in comm_raw:
-            db_raw = coin.get("community_raw", 0) or 0
-            if db_raw > 0:
-                comm_raw[cid] = db_raw
-    # Ultimate fallback: use market_cap + volume as community size proxy
-    for coin in coins:
-        cid = coin.get("id","")
-        if cid in comm_raw and comm_raw[cid] > 0.01:
-            continue
-        mc = float(coin.get("market_cap", 0) or 1)
-        vol = float(coin.get("total_volume", 0) or 0)
-        proxy = math.log(1 + mc) * 0.03 + math.log(1 + vol) * 0.01
-        comm_raw[cid] = max(comm_raw.get(cid, 0), proxy)
-    # Normalize dev and raw SEPARATELY to [0, 50]
-    dev_scores = [coin.get("community_score",0) or 0 for coin in coins]
-    raw_scores = [comm_raw.get(coin.get("id",""), 0) for coin in coins]
-    def to_range(vals, hi):
-        mn, mx = min(vals), max(vals)
-        if mx > mn:
-            return [(v - mn) / (mx - mn) * hi for v in vals]
-        return [0 for _ in vals]
-    dev_norm = to_range(dev_scores, 50)
-    raw_norm = to_range(raw_scores, 50)
-    for i, coin in enumerate(coins):
-        cid = coin.get("id","")
-        g = growth.get(cid, 0)
-        g_bonus = g / 20 if g > 5 else 0
-        combined = dev_norm[i] + raw_norm[i] + g_bonus
-        coin["community_growth"] = g
-        coin["score_community"] = round(combined, 1)
-    return coins
+    try:
+        coins = load_latest_snapshot()
+        if not coins:
+            return []
+        growth = get_latest_growth() or {}
+        comm_raw = {}
+        if COMMUNITY_DATA.exists():
+            snapshots = json.loads(COMMUNITY_DATA.read_text())
+            if snapshots:
+                latest = snapshots[-1]
+                for token_id, vals in latest.items():
+                    if token_id == "ts" or not isinstance(vals, dict):
+                        continue
+                    tf = float(vals.get("twitter", 0) or 0)
+                    tg = float(vals.get("telegram", 0) or 0)
+                    rs = float(vals.get("reddit", 0) or 0)
+                    try:
+                        comm_raw[token_id] = math.log(1 + tf) * 0.05 + math.log(1 + tg) * 0.08 + math.log(1 + rs) * 0.1
+                    except:
+                        comm_raw[token_id] = 0.0
+        for coin in coins:
+            cid = coin.get("id", "")
+            if not cid:
+                continue
+            if cid not in comm_raw:
+                db_raw = coin.get("community_raw") or 0
+                if isinstance(db_raw, (int, float)) and db_raw > 0:
+                    comm_raw[cid] = float(db_raw)
+        # Market cap / volume proxy fallback
+        for coin in coins:
+            cid = coin.get("id", "")
+            if not cid:
+                continue
+            if cid in comm_raw and comm_raw[cid] > 0.01:
+                continue
+            try:
+                mc = float(coin.get("market_cap", 0) or 1)
+                vol = float(coin.get("total_volume", 0) or 1)
+                proxy = math.log(1 + abs(mc)) * 0.03 + math.log(1 + abs(vol)) * 0.01
+                comm_raw[cid] = max(comm_raw.get(cid, 0), proxy)
+            except:
+                comm_raw[cid] = max(comm_raw.get(cid, 0), 0.01)
+        dev_scores = [float(coin.get("community_score", 0) or 0) for coin in coins]
+        raw_scores = [float(comm_raw.get(coin.get("id", "") or "", 0)) for coin in coins]
+        def to_range(vals, hi):
+            if not vals:
+                return []
+            mn, mx = min(vals), max(vals)
+            if mx > mn:
+                return [(v - mn) / (mx - mn) * hi for v in vals]
+            return [0.0] * len(vals)
+        dev_norm = to_range(dev_scores, 50)
+        raw_norm = to_range(raw_scores, 50)
+        for i, coin in enumerate(coins):
+            g = float(growth.get(coin.get("id", "") or "", 0))
+            g_bonus = g / 20 if g > 5 else 0
+            combined = dev_norm[i] + raw_norm[i] + g_bonus
+            coin["community_growth"] = g
+            coin["score_community"] = round(combined, 1)
+        return coins
+    except Exception as e:
+        print(f"[API] /api/rankings error: {e}")
+        return load_latest_snapshot() or []
 
 @app.get("/debug")
 async def debug_snapshot():
