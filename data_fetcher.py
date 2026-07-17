@@ -1,5 +1,6 @@
-import math, json
+import math, json, threading
 import requests, time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from reddit_fetcher import RedditFetcher
@@ -51,6 +52,15 @@ def _vol_expand(sp):
     if len(days) < 2: return 0.0
     cur, basev = days[-1], sum(days[:-1]) / len(days[:-1])
     return min(500.0, cur / basev * 100) if basev > 0 else 0.0
+
+
+def _community_score(data):
+    """Social media score from CoinGecko community_data (Twitter, Telegram, Reddit)."""
+    cd = (data.get("community_data") or {}) or {}
+    tf = float(cd.get("twitter_followers", 0) or 0)
+    tg = float(cd.get("telegram_channel_user_count", 0) or 0)
+    rs = float(cd.get("reddit_subscribers", 0) or 0)
+    return math.log(1 + tf) * 0.05 + math.log(1 + tg) * 0.08 + math.log(1 + rs) * 0.1
 
 def _dev_score(data):
     dd = (data.get("developer_data") or {}) or {}
@@ -111,19 +121,30 @@ class CoinGeckoFetcher:
             return out
         except Exception as e: print(f"[CG] Prices: {e}"); return {}
     def get_dev_data(self, ids):
+        """Fetch developer + community data in parallel batches (4 per batch)."""
         out = {}
-        for cid in ids:
-            self._rl()
+        lock = threading.Lock()
+        def _fetch_one(cid):
             try:
                 r = self.s.get(f"{COINGECKO_BASE}/coins/{cid}", params={
                     "localization":"false", "tickers":"false", "market_data":"false",
                     "community_data":"true", "developer_data":"true", "sparkline":"false"}, timeout=15)
-                if r.status_code == 200: out[cid] = {"community_score": _dev_score(r.json())}
-                else: print(f"[CG] Dev {cid}: {r.status_code}")
-            except Exception as e: print(f"[CG] Dev {cid}: {e}")
-        print(f"[CG] Dev: {len(out)}/{len(ids)}")
+                if r.status_code == 200:
+                    data = r.json()
+                    with lock:
+                        out[cid] = {"community_score": _dev_score(data), "community_raw": _community_score(data)}
+                else:
+                    print(f"[CG] Dev {cid}: {r.status_code}")
+            except Exception as e:
+                print(f"[CG] Dev {cid}: {e}")
+        for i in range(0, len(ids), 4):
+            batch = ids[i:i+4]
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                pool.map(_fetch_one, batch)
+            if i + 4 < len(ids):
+                self._rl()
+        print(f"[CG] Dev+Community: {len(out)}/{len(ids)}")
         return out
-    def fetch_all(self):
         trend = self.get_trending()
         if not trend: return []
         ids = [c["id"] for c in trend if c["id"]]
@@ -149,5 +170,7 @@ class CoinGeckoFetcher:
                "sparkline_prices": pi.get("sparkline_prices",[]),
                 "sparkline_full": pi.get("sparkline_full",[]),
                 "momentum_score": _vol_expand(pi.get("sparkline_full",[])),
-                "community_score": dev.get(cid, {}).get("community_score",0), "reddit_mentions": _get_rolling_24h(coin["name"])})
+                "community_score": dev.get(cid, {}).get("community_score",0),
+                "community_raw": dev.get(cid, {}).get("community_raw",0),
+                "reddit_mentions": 0})
         return out

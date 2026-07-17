@@ -19,9 +19,9 @@ class SignalScorer:
         rm=[self._f(c.get("momentum_score",0)) for c in coins]
         rv=[min(self._f(c.get("total_volume",0))/max(self._f(c.get("market_cap",0)),1)*100,100) if self._f(c.get("market_cap",0))>0 else 0 for c in coins]
         rc_dev=[self._f(c.get("community_score",0)) for c in coins]
-        rc_reddit=[self._f(c.get("reddit_mentions",0)) for c in coins]
-        rc_reddit_log = [math.log(1 + max(r, 0)) * 2 for r in rc_reddit]
-        rc = [d + r for d, r in zip(rc_dev, rc_reddit_log)]
+        rc_reddit=[self._f(c.get("community_raw",0)) for c in coins]
+        # community_raw is already log-scaled
+        rc = [d + r for d, r in zip(rc_dev, rc_reddit)]
         nt=self._n(rt);np_=self._n([abs(x) for x in rp]);nm=self._n(rm);nv=self._n(rv);nc=self._n(rc)
         "# Soften community extremes: map [0,100] to [5,95] so no coin gets absolute 0"
         nc = [5 + x * 0.9 for x in nc]
