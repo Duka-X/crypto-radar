@@ -17,9 +17,54 @@ from scorer import SignalScorer
 
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "data" / "rankings.db"
+COMMUNITY_DATA = BASE_DIR / "data" / "community_data.json"
 
 
 # --- Database helpers ---
+
+
+COMMUNITY_THRESHOLD = 100  # Base threshold for growth calculation (ignore < 100)
+
+def save_community_snapshot(data: dict):
+    """Append a timestamped snapshot of community data to the JSON file."""
+    now = datetime.now(timezone.utc).isoformat()
+    record = {"ts": now}
+    for cid, vals in data.items():
+        record[cid] = vals
+    if COMMUNITY_DATA.exists():
+        snapshots = json.loads(COMMUNITY_DATA.read_text())
+    else:
+        snapshots = []
+    snapshots.append(record)
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    snapshots = [s for s in snapshots if s.get("ts", "") > cutoff]
+    COMMUNITY_DATA.write_text(json.dumps(snapshots, default=str))
+    print(f"[Community] Saved snapshot ({len(data)} coins, {len(snapshots)} total)")
+
+def get_latest_growth() -> dict:
+    """Calculate growth rate for each coin from the last two community snapshots."""
+    if not COMMUNITY_DATA.exists():
+        return {}
+    snapshots = json.loads(COMMUNITY_DATA.read_text())
+    if len(snapshots) < 2:
+        return {}
+    prev, curr = snapshots[-2], snapshots[-1]
+    growth = {}
+    for token_id, curr_vals in curr.items():
+        if token_id == "ts":
+            continue
+        prev_vals = prev.get(token_id, {})
+        if not isinstance(prev_vals, dict):
+            prev_vals = {}
+        g = 0.0
+        for key in ("twitter", "telegram", "reddit"):
+            p = float(prev_vals.get(key, 0) or 0)
+            c = float(curr_vals.get(key, 0) or 0)
+            base = max(p, COMMUNITY_THRESHOLD)
+            if base > 0:
+                g += (c - p) / base * 100
+        growth[token_id] = g
+    return growth
 
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -81,8 +126,10 @@ def load_latest_snapshot() -> list[dict] | None:
 async def lifespan(app: FastAPI):
     init_db()
     task = asyncio.create_task(_background_refresher())
+    community_task = asyncio.create_task(_community_poller())
     yield
     task.cancel()
+    community_task.cancel()
     try:
         await task
     except asyncio.CancelledError:
@@ -139,7 +186,23 @@ async def api_last_refresh():
 @app.get("/api/rankings")
 async def api_rankings():
     coins = load_latest_snapshot()
-    return coins if coins else []
+    if not coins:
+        return []
+    growth = get_latest_growth()
+    all_c = [(coin.get("community_score",0) or 0) + (growth.get(coin.get("id",""), 0) or 0) for coin in coins]
+    if all_c:
+        mn, mx = min(all_c), max(all_c)
+        if mx > mn:
+            all_c_norm = [5 + (x - mn) / (mx - mn) * 90 for x in all_c]
+        else:
+            all_c_norm = [50 for _ in all_c]
+    else:
+        all_c_norm = []
+    for i, coin in enumerate(coins):
+        g = growth.get(coin.get("id",""), 0)
+        coin["community_growth"] = g
+        coin["score_community"] = round(all_c_norm[i], 1) if i < len(all_c_norm) else 5
+    return coins
 
 @app.get("/debug")
 async def debug_snapshot():
@@ -201,6 +264,23 @@ _last_refresh_time = None
 _BACKGROUND_INTERVAL = 3600
 _last_refresh_time = None
 _BACKGROUND_INTERVAL = 3600
+
+
+async def _community_poller():
+    """Poll community data every ~60 seconds for growth tracking."""
+    from data_fetcher import CoinGeckoFetcher
+    while True:
+        try:
+            await asyncio.sleep(60)
+            fetcher = CoinGeckoFetcher()
+            coins = load_latest_snapshot()
+            if coins:
+                ids = [c["id"] for c in coins if c.get("id")]
+                community = await asyncio.to_thread(fetcher.fetch_community_data, ids)
+                if community:
+                    save_community_snapshot(community)
+        except Exception as e:
+            print(f"[Community] Poll error: {e}")
 
 
 async def _background_refresher():
