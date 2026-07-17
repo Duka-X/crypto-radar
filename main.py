@@ -189,7 +189,7 @@ async def api_rankings():
     if not coins:
         return []
     growth = get_latest_growth()
-    # Get latest community raw data from the most recent snapshot
+    # Get latest community raw data: first try poller, then fallback to DB
     comm_raw = {}
     if COMMUNITY_DATA.exists():
         snapshots = json.loads(COMMUNITY_DATA.read_text())
@@ -202,6 +202,13 @@ async def api_rankings():
                     tg = float(vals.get("telegram",0) or 0)
                     rs = float(vals.get("reddit",0) or 0)
                     comm_raw[token_id] = math.log(1 + tf) * 0.05 + math.log(1 + tg) * 0.08 + math.log(1 + rs) * 0.1
+    # Fallback: use community_raw stored in DB from last fetch_all
+    for coin in coins:
+        cid = coin.get("id","")
+        if cid not in comm_raw:
+            db_raw = coin.get("community_raw", 0) or 0
+            if db_raw > 0:
+                comm_raw[cid] = db_raw
     # Normalize dev_score and community_raw SEPARATELY to [0, 50] each, then add
     dev_scores = [coin.get("community_score",0) or 0 for coin in coins]
     raw_scores = [comm_raw.get(coin.get("id",""), 0) for coin in coins]
@@ -212,7 +219,6 @@ async def api_rankings():
         return [hi/2 for _ in vals]
     dev_norm = to_range(dev_scores, 50)
     raw_norm = to_range(raw_scores, 50)
-    # Add growth bonus on top
     for i, coin in enumerate(coins):
         cid = coin.get("id","")
         g = growth.get(cid, 0)
