@@ -2,12 +2,12 @@ import os
 import asyncio
 import sqlite3
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -18,15 +18,64 @@ from scorer import SignalScorer
 BASE_DIR = Path(__file__).parent
 DB_PATH = BASE_DIR / "data" / "rankings.db"
 COMMUNITY_DATA = BASE_DIR / "data" / "community_data.json"
+DESCRIPTION_CACHE_FILE = BASE_DIR / "data" / "description_cache.json"
 
 
 # --- Database helpers ---
 
+COMMUNITY_THRESHOLD = 100
 
-COMMUNITY_THRESHOLD = 100  # Base threshold for growth calculation (ignore < 100)
+
+def _load_desc_cache() -> dict:
+    if not DESCRIPTION_CACHE_FILE.exists():
+        return {}
+    try:
+        return json.loads(DESCRIPTION_CACHE_FILE.read_text())
+    except:
+        return {}
+
+
+def _save_desc_cache(cache: dict):
+    DESCRIPTION_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    DESCRIPTION_CACHE_FILE.write_text(json.dumps(cache, default=str))
+
+
+def _get_description(token_id: str) -> str | None:
+    """Fetch & cache token description from CoinGecko."""
+    cache = _load_desc_cache()
+    if token_id in cache:
+        v = cache.get(token_id)
+        return v if v else None
+    try:
+        import requests
+        r = requests.get(
+            f"https://api.coingecko.com/api/v3/coins/{token_id}",
+            params={"localization": "false", "tickers": "false",
+                    "market_data": "false", "community_data": "false",
+                    "developer_data": "false", "sparkline": "false"},
+            timeout=15,
+            headers={"Accept": "application/json", "User-Agent": "CryptoRadar/1.0"}
+        )
+        if r.status_code == 200:
+            data = r.json()
+            desc = (data.get("description") or {}).get("en") or ""
+            if desc:
+                import re as _re
+                desc = _re.sub(r"<[^>]+>", "", desc)
+                desc = _re.sub(r"\s+", " ", desc).strip()
+            cache[token_id] = desc
+            _save_desc_cache(cache)
+            return desc if desc else None
+        else:
+            cache[token_id] = ""
+            _save_desc_cache(cache)
+            return None
+    except Exception as e:
+        print(f"[Desc] {token_id}: {e}")
+        return None
+
 
 def save_community_snapshot(data: dict):
-    """Append a timestamped snapshot of community data to the JSON file."""
     now = datetime.now(timezone.utc).isoformat()
     record = {"ts": now}
     for cid, vals in data.items():
@@ -39,10 +88,8 @@ def save_community_snapshot(data: dict):
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     snapshots = [s for s in snapshots if s.get("ts", "") > cutoff]
     COMMUNITY_DATA.write_text(json.dumps(snapshots, default=str))
-    print(f"[Community] Saved snapshot ({len(data)} coins, {len(snapshots)} total)")
 
 def get_latest_growth() -> dict:
-    """Calculate growth rate for each coin from the last two community snapshots."""
     if not COMMUNITY_DATA.exists():
         return {}
     snapshots = json.loads(COMMUNITY_DATA.read_text())
@@ -66,8 +113,9 @@ def get_latest_growth() -> dict:
         growth[token_id] = g
     return growth
 
+
+
 def init_db():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     c = conn.cursor()
     c.execute("""
@@ -142,7 +190,6 @@ templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
 def _patch_community(coins):
-    """Recalculate score_community for all coins using rank-based scoring (0-100)."""
     if not coins:
         return
     try:
@@ -150,15 +197,15 @@ def _patch_community(coins):
         for coin in coins:
             dev = float(coin.get("community_score", 0) or 0)
             mc = float(coin.get("market_cap", 0) or 1)
-            proxy = math.log(1 + abs(mc)) * 0.05
+            proxy = m.log(1 + abs(mc)) * 0.05
             scores.append(round(dev + proxy, 4))
-        # Rank-based scoring: evenly spread from 5 to 95
         order = sorted(range(len(scores)), key=lambda i: scores[i])
         for rank_pos, idx in enumerate(order):
             c_val = round(5 + (rank_pos / (len(coins) - 1)) * 90, 1)
             coins[idx]["score_community"] = c_val
     except:
         pass
+
 
 @app.get("/", response_class=HTMLResponse)
 async def index(request: Request):
@@ -222,7 +269,7 @@ async def api_rankings():
                     tg = float(vals.get("telegram", 0) or 0)
                     rs = float(vals.get("reddit", 0) or 0)
                     try:
-                        comm_raw[token_id] = math.log(1 + tf) * 0.05 + math.log(1 + tg) * 0.08 + math.log(1 + rs) * 0.1
+                        comm_raw[token_id] = m.log(1 + tf) * 0.05 + m.log(1 + tg) * 0.08 + m.log(1 + rs) * 0.1
                     except:
                         comm_raw[token_id] = 0.0
         for coin in coins:
@@ -233,7 +280,6 @@ async def api_rankings():
                 db_raw = coin.get("community_raw") or 0
                 if isinstance(db_raw, (int, float)) and db_raw > 0:
                     comm_raw[cid] = float(db_raw)
-        # Market cap / volume proxy fallback
         for coin in coins:
             cid = coin.get("id", "")
             if not cid:
@@ -243,7 +289,7 @@ async def api_rankings():
             try:
                 mc = float(coin.get("market_cap", 0) or 1)
                 vol = float(coin.get("total_volume", 0) or 1)
-                proxy = math.log(1 + abs(mc)) * 0.03 + math.log(1 + abs(vol)) * 0.01
+                proxy = m.log(1 + abs(mc)) * 0.03 + m.log(1 + abs(vol)) * 0.01
                 comm_raw[cid] = max(comm_raw.get(cid, 0), proxy)
             except:
                 comm_raw[cid] = max(comm_raw.get(cid, 0), 0.01)
@@ -269,6 +315,7 @@ async def api_rankings():
         print(f"[API] /api/rankings error: {e}")
         return load_latest_snapshot() or []
 
+
 @app.get("/debug")
 async def debug_snapshot():
     coins = load_latest_snapshot()
@@ -287,17 +334,23 @@ async def debug_snapshot():
 async def token_detail(request: Request, token_id: str):
     latest = load_latest_snapshot()
     current = None
+    related = []
     if latest:
         for c in latest:
             if c.get("id") == token_id:
                 current = c
-                break
+            else:
+                related.append(c)
+        related = sorted(related, key=lambda x: x.get("signal_score", 0) or 0, reverse=True)[:5]
     history = get_token_history(token_id)
+    description = _get_description(token_id) if current else None
     context = {
         "request": request,
         "token": current,
         "history": history,
         "token_id": token_id,
+        "related_coins": related,
+        "token_description": description,
     }
     return templates.TemplateResponse("token.html", context)
 
@@ -322,17 +375,51 @@ async def token_chart(token_id: str, days: int = 7):
     except Exception as e:
         return {"error": str(e)}
 
+
+@app.get("/robots.txt", response_class=Response, include_in_schema=False)
+async def robots_txt():
+    return Response(content="""User-agent: *
+Disallow: /api/
+Disallow: /refresh
+
+Sitemap: https://cryptoradar.dev/sitemap.xml
+""", media_type="text/plain")
+
+
+@app.get("/sitemap.xml", response_class=Response, include_in_schema=False)
+async def sitemap_xml():
+    coins = load_latest_snapshot()
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+        "  <url>",
+        "    <loc>https://cryptoradar.dev/</loc>",
+        "    <changefreq>hourly</changefreq>",
+        "    <priority>1.0</priority>",
+        "  </url>",
+    ]
+    for c in (coins or []):
+        cid = c.get("id", "")
+        if cid:
+            lines.extend([
+                "  <url>",
+                f"    <loc>https://cryptoradar.dev/token/{cid}</loc>",
+                "    <changefreq>hourly</changefreq>",
+                "    <priority>0.8</priority>",
+                "  </url>",
+            ])
+    lines.append("</urlset>")
+    return Response(content="\n".join(lines), media_type="application/xml")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 _last_refresh_time = None
 _BACKGROUND_INTERVAL = 3600
-_last_refresh_time = None
-_BACKGROUND_INTERVAL = 3600
 
 
 async def _community_poller():
-    """Poll community data every ~60 seconds for growth tracking."""
     from data_fetcher import CoinGeckoFetcher
     while True:
         try:
@@ -369,6 +456,7 @@ async def _background_refresher():
             continue
         print(f"[Background] Next refresh in 1 hour")
         await asyncio.sleep(_BACKGROUND_INTERVAL)
+
 def get_token_history(token_id: str, limit: int = 100) -> list[dict]:
     conn = sqlite3.connect(str(DB_PATH))
     c = conn.cursor()

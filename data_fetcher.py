@@ -145,6 +145,7 @@ class CoinGeckoFetcher:
                 self._rl()
         print(f"[CG] Dev+Community: {len(out)}/{len(ids)}")
         return out
+    def fetch_all(self):
         trend = self.get_trending()
         if not trend: return []
         ids = [c["id"] for c in trend if c["id"]]

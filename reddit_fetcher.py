@@ -70,7 +70,7 @@ class RedditFetcher:
 
                             if not matched_this and len(symbol) >= 3:
                                 if re.search(
-                                    r"(?:\$|)" + re.escape(symbol) + r"",
+                                    r"(?:\$|\\b)" + re.escape(symbol) + r"\\b",
                                     text, re.IGNORECASE
                                 ):
                                     mentions[name] += 1
