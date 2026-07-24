@@ -146,32 +146,26 @@ class CoinGeckoFetcher:
         print(f"[CG] Dev+Community: {len(out)}/{len(ids)}")
         return out
     def fetch_all(self):
-        trend = self.get_trending()
-        if not trend: return []
-        ids = [c["id"] for c in trend if c["id"]]
-        prices = self.get_prices(ids)
-        dev = self.get_dev_data(ids)
+        coins = self.fetch_top_prices(100)
+        if not coins: return []
+        ids = [c["id"] for c in coins if c["id"]]
+        # Try to enrich with dev data (may be incomplete due to rate limits)
+        try:
+            dev = self.get_dev_data(ids)
+            for c in coins:
+                dd = dev.get(c["id"], {})
+                if dd:
+                    c["community_score"] = dd.get("community_score", 0)
+                    c["community_raw"] = dd.get("community_raw", 0)
+        except Exception as e:
+            print(f"[CG] Dev enrichment: {e}")
         # Reddit mentions
         try:
             reddit = RedditFetcher()
-            reddit_count = reddit.fetch_mentions(trend)
-            _save_mention_snapshot(reddit_count)
+            mentions = reddit.fetch_mentions(coins)
+            _save_mention_snapshot(mentions)
+            for c in coins:
+                c["reddit_mentions"] = mentions.get(c["id"], 0)
         except Exception as e:
             print(f"[Reddit] Error: {e}")
-            reddit_count = {}
-
-        out = []
-        for coin in trend:
-            cid = coin["id"]
-            pi = prices.get(cid, {})
-            out.append({**coin,
-                "current_price": pi.get("current_price",0), "market_cap": pi.get("market_cap",0),
-                "total_volume": pi.get("total_volume",0),
-                "price_change_percentage_24h": pi.get("price_change_percentage_24h",0),
-               "sparkline_prices": pi.get("sparkline_prices",[]),
-                "sparkline_full": pi.get("sparkline_full",[]),
-                "momentum_score": _vol_expand(pi.get("sparkline_full",[])),
-                "community_score": dev.get(cid, {}).get("community_score",0),
-                "community_raw": dev.get(cid, {}).get("community_raw",0),
-                "reddit_mentions": 0})
-        return out
+        return coins

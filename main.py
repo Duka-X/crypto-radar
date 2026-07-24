@@ -375,6 +375,74 @@ async def token_chart(token_id: str, days: int = 7):
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/methodology", response_class=HTMLResponse)
+async def methodology_page(request: Request):
+    return templates.TemplateResponse("methodology.html", {
+        "request": request,
+    })
+
+
+@app.get("/trending", response_class=HTMLResponse)
+async def trending_page(request: Request):
+    conn = sqlite3.connect(str(DB_PATH))
+    c = conn.cursor()
+    c.execute("SELECT data_json FROM rankings ORDER BY id DESC LIMIT 2")
+    rows = c.fetchall()
+    conn.close()
+    
+    coins = []
+    if len(rows) >= 2:
+        current = json.loads(rows[0][0])
+        previous = json.loads(rows[1][0])
+        prev_scores = {}
+        for coin in previous:
+            cid = coin.get("id")
+            if cid:
+                prev_scores[cid] = float(coin.get("signal_score", 0) or 0)
+        for coin in current:
+            cid = coin.get("id")
+            prev = prev_scores.get(cid, 0)
+            curr = float(coin.get("signal_score", 0) or 0)
+            coin["score_change"] = round(curr - prev, 1)
+        coins = sorted(current, key=lambda x: x.get("score_change", 0), reverse=True)
+        _patch_community(coins)
+    
+    for i, c in enumerate(coins):
+        c["rank"] = i + 1
+    
+    return templates.TemplateResponse("listing.html", {
+        "request": request,
+        "coins": coins,
+        "page_title": "Trending Cryptocurrencies - Signal Score Gainers | CryptoRadar",
+        "page_description": "Cryptocurrencies with the fastest rising signal scores in the last hour. Momentum across Trending, Price, Volume, and Community signals.",
+        "page_heading": "Trending",
+        "page_subtitle": "Coins with the biggest signal score increase",
+        "sort_by": "score_change",
+        "sort_label": "Score \u0394",
+    })
+
+
+@app.get("/most-volatile", response_class=HTMLResponse)
+async def most_volatile_page(request: Request):
+    coins = load_latest_snapshot()
+    if not coins:
+        coins = []
+    coins = sorted(coins, key=lambda x: float(x.get("score_momentum", 0) or 0), reverse=True)
+    _patch_community(coins)
+    for i, c in enumerate(coins):
+        c["rank"] = i + 1
+    return templates.TemplateResponse("listing.html", {
+        "request": request,
+        "coins": coins,
+        "page_title": "Most Volatile Cryptocurrencies - Price Momentum Leaders | CryptoRadar",
+        "page_description": "Cryptocurrencies with the highest price volatility and momentum, measured by 7-day sparkline expansion analysis.",
+        "page_heading": "Most Volatile",
+        "page_subtitle": "Coins with the highest price momentum and volatility expansion",
+        "sort_by": "score_momentum",
+        "sort_label": "Momentum",
+    })
+
+
 
 @app.get("/robots.txt", response_class=Response, include_in_schema=False)
 async def robots_txt():

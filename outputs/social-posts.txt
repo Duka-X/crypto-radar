@@ -1,0 +1,70 @@
+﻿====================================================
+  REDDIT 帖子模板
+====================================================
+
+【标题】
+I built a free tool that scores trending crypto coins across 5 signals (trending, price, momentum, volume, community) — updated hourly
+
+【正文】
+Been working on this side project for a while and finally want to share it with the community.
+
+It's called CryptoRadar (cryptoradar.dev) — a real-time ranking dashboard that scores the top trending coins from CoinGecko across 5 weighted signals:
+
+T — Trending (20%) — CoinGecko search ranking
+P — Price action (15%) — 24h price change
+M — Momentum (20%) — volatility expansion from 7-day sparklines
+V — Volume surge (25%) — volume-to-market-cap ratio
+C — Community activity (20%) — GitHub commits, Twitter, Telegram, Reddit mentions
+
+Everything normalizes into a 0–100 signal score, updated every hour automatically.
+
+Here's what I've been adding recently:
+• Token detail pages with score breakdown, price chart, and CoinGecko description
+• Trending page showing which coins' scores are rising the fastest
+• Most volatile page sorted by price momentum
+• Full methodology page explaining how each signal works
+
+It's completely free, no ads, no signup. Just wanted to build something useful for tracking the space.
+
+Would love to hear what you think — what signals would you add or change?
+
+www.cryptoradar.dev
+
+====================================================
+  TWITTER / X 帖子模板
+====================================================
+
+【帖文 1 · 产品展示】
+Built a real-time crypto ranking tool that scores trending coins across 5 signals 🚀
+
+📊 Trending (20%)
+💹 Price (15%)
+📈 Momentum (20%)
+🔄 Volume (25%)
+👥 Community (20%)
+
+Updated hourly, completely free.
+cryptoradar.dev
+
+#crypto #defi #trading
+
+【帖文 2 · 趋势页】
+The most trending coins right now on CryptoRadar 🔥
+
+New feature: /trending page shows which coins have the fastest rising signal scores.
+
+Check it out:
+cryptoradar.dev/trending
+
+#crypto #altcoins
+
+【帖文 3 · 技术分享】
+Just launched a detailed methodology page for my crypto ranking tool 📖
+
+Explains exactly how each of the 5 signals is calculated, weighted, and normalized. No black boxes.
+
+cryptoradar.dev/methodology
+
+#buildinpublic #crypto
+
+====================================================
