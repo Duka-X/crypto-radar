@@ -14,7 +14,7 @@
                 <h1 class="logo">CryptoRadar<span class="logo-dot">.</span></h1>
                 <span class="badge">MVP</span>
             </div>
-            <p class="tagline">Multi-Signal Crypto Ranking — Trending &times; Volume &times; Price Action</p>
+            <p class="tagline">Multi-Signal Crypto Ranking —Trending &times; Volume &times; Price Action</p>
             <div class="header-meta">
                 <span class="meta-item">Updated: <span id="refresh-time">{{ updated_at }}</span></span>
                 <span class="meta-item">{{ total_coins }} tokens tracked</span>
@@ -84,9 +84,9 @@
                                 {% if coin.sparkline_prices and coin.sparkline_prices|length > 1 %}
                                 {% set sp = coin.sparkline_prices %}
                                 {% set mn = sp|min %}{% set mx = sp|max %}{% set rg = mx - mn if mx > mn else 1 %}
-                                <svg width="80" height="24" viewBox="0 0 80 24" class="sparkline">
+                                <svg width="160" height="32" viewBox="0 0 160 32" class="sparkline">
                                     <polyline fill="none" stroke="{% if sp[-1] >= sp[0] %}#22c57a{% else %}#f25a5f{% endif %}" stroke-width="1.5"
-                                        points="{% for p in sp %}{{ (80 * loop.index0 / (sp|length - 1))|round(1) }},{{ (24 - ((p - mn) / rg * 22 + 1))|round(1) }}{% if not loop.last %} {% endif %}{% endfor %}" />
+                                        points="{% for p in sp %}{{ (160 * loop.index0 / (sp|length - 1))|round(1) }},{{ (24 - ((p - mn) / rg * 22 + 1))|round(1) }}{% if not loop.last %} {% endif %}{% endfor %}" />
                                 </svg>
                                 {% else %}
                                 &mdash;
@@ -104,11 +104,19 @@
                                         <span class="bd-label">T</span>
                                         <span class="bd-val">{{ coin.score_trending }}</span>
                                     </div>
-                                    <div class="bd-item" title="Price action score">
-                                        <span class="bd-label">P</span>
-                                        <span class="bd-val">{{ coin.score_price }}</span>
-                                    </div>
-                                    <div class="bd-item" title="Volume ratio score">
+                    <div class="bd-item" title="Price action score">
+                        <span class="bd-label">P</span>
+                        <span class="bd-val">{{ coin.score_price }}</span>
+                    </div>
+                    <div class="bd-item" title="Google Trends score">
+                        <span class="bd-label">G</span>
+                        <span class="bd-val">{{ coin.score_trends }}</span>
+                    </div>
+                    <div class="bd-item" title="Reddit mention score">
+                        <span class="bd-label">R</span>
+                        <span class="bd-val">{{ coin.score_reddit }}</span>
+                    </div>
+                    <div class="bd-item" title="Volume ratio score">
                                         <span class="bd-label">V</span>
                                         <span class="bd-val">{{ coin.score_volume }}</span>
                                     </div>
@@ -134,8 +142,8 @@
                     <p>Composite ranking combining trending popularity, 24h price action, and volume-to-market-cap ratio. Higher = more attention across dimensions.</p>
                 </div>
                 <div class="legend-card">
-                    <h4>Breakdown (T / P / V)</h4>
-                    <p><strong>T</strong> = CoinGecko Trending &middot; <strong>P</strong> = Price Action &middot; <strong>V</strong> = Volume Surge. Each normalized 0&ndash;100.</p>
+                    <h4>Breakdown (T / P / G / R / V)</h4>
+                    <p><strong>T</strong> = CoinGecko Trending &middot; <strong>P</strong> = Price Action &middot; <strong>G</strong> = Google Trends &middot; <strong>R</strong> = Reddit Mentions &middot; <strong>V</strong> = Volume Surge. Each normalized 0&ndash;100.</p>
                 </div>
                 <div class="legend-card">
                     <h4>Not financial advice</h4>

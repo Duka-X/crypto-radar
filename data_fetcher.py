@@ -2,6 +2,9 @@ import requests
 import time
 from typing import Optional
 
+from reddit_fetcher import RedditFetcher
+from trends_fetcher import TrendsFetcher
+ 
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 TRENDING_URL = "https://api.coingecko.com/api/v3/search/trending"
@@ -108,15 +111,31 @@ class CoinGeckoFetcher:
             return {}
 
     def fetch_all(self) -> list[dict]:
+        """Fetch trending coins + prices + social signals (Reddit, Google Trends)."""
         trending = self.get_trending()
         if not trending:
             return []
         coin_ids = [c["id"] for c in trending if c["id"]]
         prices = self.get_prices(coin_ids)
+        
+        # --- Social signals: Reddit mentions ---
+        coin_names = [c["name"] for c in trending]
+        reddit = RedditFetcher()
+        mentions = reddit.fetch_all_mentions(coin_names)
+        print(f"[Reddit] Mentions: {dict((k,v) for k,v in mentions.items() if v > 0)}")
+        
+        # --- Social signals: Google Trends ---
+        trends = TrendsFetcher()
+        trends_scores = trends.fetch_scores(coin_names)
+        print(f"[Trends] Got scores for {sum(1 for v in trends_scores.values() if v > 0)}/{len(trends_scores)} coins")
+        
         combined = []
         for coin in trending:
             cid = coin["id"]
             price_info = prices.get(cid, {})
+            name = coin["name"]
+            reddit_count = mentions.get(name, 0)
+            trends_score = trends_scores.get(name, 0)
             combined.append({
                 **coin,
                 "current_price": price_info.get("current_price", 0),
@@ -125,5 +144,7 @@ class CoinGeckoFetcher:
                 "price_change_24h": price_info.get("price_change_24h", 0),
                 "price_change_percentage_24h": price_info.get("price_change_percentage_24h", 0),
                 "sparkline_prices": price_info.get("sparkline_prices", []),
+                "reddit_mentions": reddit_count,
+                "google_trends_score": trends_score,
             })
         return combined

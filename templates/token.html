@@ -72,6 +72,16 @@
                     <span class="bar-value">{{ token.score_price }}</span>
                 </div>
                 <div class="bar-item">
+                    <span class="bar-label">Trends (G)</span>
+                    <div class="bar-track"><div class="bar-fill red" style="width:{{ token.score_trends }}%"></div></div>
+                    <span class="bar-value">{{ token.score_trends }}</span>
+                </div>
+                <div class="bar-item">
+                    <span class="bar-label">Reddit (R)</span>
+                    <div class="bar-track"><div class="bar-fill pink" style="width:{{ token.score_reddit }}%"></div></div>
+                    <span class="bar-value">{{ token.score_reddit }}</span>
+                </div>
+                <div class="bar-item">
                     <span class="bar-label">Volume (V)</span>
                     <div class="bar-track"><div class="bar-fill orange" style="width:{{ token.score_volume }}%"></div></div>
                     <span class="bar-value">{{ token.score_volume }}</span>
@@ -79,10 +89,7 @@
             </div>
         </section>
 
-        <!-- Chart -->
-        <section class="chart-section">
-            
-        <!-- 24h Price Trend -->
+        <!-- Charts -->
         <section class="chart-section">
             <h3>24h Price Trend</h3>
             {% if token.sparkline_prices and token.sparkline_prices|length > 1 %}
@@ -94,7 +101,8 @@
             {% endif %}
         </section>
 
-<h3>Signal Score History</h3>
+        <section class="chart-section">
+            <h3>Signal Score History</h3>
             {% if history|length > 1 %}
             <div class="chart-wrapper">
                 <canvas id="scoreChart"></canvas>
