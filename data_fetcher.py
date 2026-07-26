@@ -1,150 +1,172 @@
-import requests
-import time
-from typing import Optional
-
+import math, json, threading
+import os
+import requests, time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from reddit_fetcher import RedditFetcher
-from trends_fetcher import TrendsFetcher
- 
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
-TRENDING_URL = "https://api.coingecko.com/api/v3/search/trending"
 
+MENTIONS_FILE = Path(__file__).parent / "data" / "reddit_mentions.json"
+
+
+def _save_mention_snapshot(mention_counts):
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        if MENTIONS_FILE.exists():
+            data = json.loads(MENTIONS_FILE.read_text())
+        else:
+            data = []
+        data.append({"ts": now, "mentions": mention_counts})
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+        data = [r for r in data if r["ts"] > cutoff]
+        MENTIONS_FILE.write_text(json.dumps(data))
+    except Exception as e:
+        print(f"[Mentions] Save error: {e}")
+
+
+def _get_rolling_24h(coin_name):
+    try:
+        if not MENTIONS_FILE.exists():
+            return 0
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        data = json.loads(MENTIONS_FILE.read_text())
+        total = 0
+        for record in data:
+            if record["ts"] > cutoff:
+                total += record["mentions"].get(coin_name, 0)
+        return total
+    except:
+        return 0
+
+
+def _vol_expand(sp):
+    if not sp or len(sp) < 48: return 0.0
+    cs = len(sp) // 7
+    days = []
+    for i in range(7):
+        seg = sp[i*cs:(i+1)*cs]
+        if len(seg) >= 2:
+            mn, mx, avg = min(seg), max(seg), sum(seg)/len(seg)
+            if avg > 0: days.append((mx - mn) / avg)
+    if len(days) < 2: return 0.0
+    cur, basev = days[-1], sum(days[:-1]) / len(days[:-1])
+    return min(500.0, cur / basev * 100) if basev > 0 else 0.0
+
+
+def _community_score(data):
+    """Social media score from CoinGecko community_data (Twitter, Telegram, Reddit)."""
+    cd = (data.get("community_data") or {}) or {}
+    tf = float(cd.get("twitter_followers", 0) or 0)
+    tg = float(cd.get("telegram_channel_user_count", 0) or 0)
+    rs = float(cd.get("reddit_subscribers", 0) or 0)
+    return math.log(1 + tf) * 0.05 + math.log(1 + tg) * 0.08 + math.log(1 + rs) * 0.1
+
+def _dev_score(data):
+    dd = (data.get("developer_data") or {}) or {}
+    commits = float(dd.get("commit_count_4_weeks", 0) or 0)
+    code = dd.get("code_additions_deletions_4_weeks") or {}
+    if isinstance(code, dict):
+        a = float(code.get("additions", 0) or 0)
+        d = float(code.get("deletions", 0) or 0)
+        code_churn = abs(a) + abs(d)
+    else:
+        code_churn = float(code or 0)
+    score = commits * 5 + code_churn * 0.005
+    if score > 0:
+        score = math.log(1 + score / 10) * 10
+    return score
 
 class CoinGeckoFetcher:
-    """Fetch trending coins and market data from CoinGecko API."""
-
     def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update({
-            "Accept": "application/json",
-            "User-Agent": "CryptoRadar/1.0"
-        })
-        self.last_call = 0.0
-        self.min_interval = 6.0
-
-    def _rate_limit(self):
-        elapsed = time.time() - self.last_call
-        if elapsed < self.min_interval:
-            time.sleep(self.min_interval - elapsed)
-        self.last_call = time.time()
-
-    def _handle_429(self, resp, max_retries=2):
-        retries = 0
-        while resp.status_code == 429 and retries < max_retries:
-            retries += 1
-            wait = 15 * retries
-            print(f"[CoinGecko] Rate limited, retrying in {wait}s (attempt {retries}/{max_retries})")
-            time.sleep(wait)
-            return True
-        return False
-
-    def get_trending(self) -> list[dict]:
-        self._rate_limit()
+        self.s = requests.Session()
+        self.s.headers.update({"Accept": "application/json", "User-Agent": "CryptoRadar/1.0"})
+        self.last = 0.0
+    def _rl(self):
+        e = time.time() - self.last
+        if e < 6.0: time.sleep(6.0 - e)
+        self.last = time.time()
+    def get_trending(self):
+        self._rl()
         try:
-            resp = self.session.get(TRENDING_URL, timeout=15)
-            if resp.status_code == 429:
-                print("[CoinGecko] Trending rate limited, skipping")
-                return []
-            resp.raise_for_status()
-            data = resp.json()
-            coins = data.get("coins", [])
-            results = []
-            for item in coins[:25]:
+            r = self.s.get(f"{COINGECKO_BASE}/search/trending", timeout=15)
+            if r.status_code == 429: return []
+            r.raise_for_status()
+            out = []
+            for item in (r.json().get("coins") or [])[:25]:
                 c = item.get("item", {})
-                coin_id = c.get("id", "")
-                symbol = c.get("symbol", "").upper()
-                name = c.get("name", "")
-                market_cap_rank = c.get("market_cap_rank")
-                score = c.get("score", 0)
-                thumb = c.get("thumb", "")
-                results.append({
-                    "id": coin_id,
-                    "symbol": symbol,
-                    "name": name,
-                    "market_cap_rank": market_cap_rank,
-                    "trending_score": max(0, 100 - score * 3),
-                    "thumb": thumb,
-                })
-            return results
-        except Exception as e:
-            print(f"[CoinGecko] Trending fetch error: {e}")
-            return []
-
-    def get_prices(self, coin_ids: list[str]) -> dict[str, dict]:
-        if not coin_ids:
-            return {}
-        self._rate_limit()
-        ids_param = ",".join(coin_ids)
+                out.append({"id": c.get("id",""), "symbol": c.get("symbol","").upper(), "name": c.get("name",""),
+                    "market_cap_rank": c.get("market_cap_rank"), "trending_score": max(0, 100 - (c.get("score",0) or 0) * 3),
+                    "thumb": c.get("thumb","")})
+            return out
+        except Exception as e: print(f"[CG] Trending: {e}"); return []
+    def get_prices(self, ids):
+        if not ids: return {}
+        self._rl()
         try:
-            resp = self.session.get(
-                f"{COINGECKO_BASE}/coins/markets",
-                params={
-                    "vs_currency": "usd",
-                    "ids": ids_param,
-                    "order": "market_cap_desc",
-                    "per_page": 50,
-                    "page": 1,
-                    "sparkline": "true",
-                    "price_change_percentage": "1h,24h"
-                },
-                timeout=15
-            )
-            if resp.status_code == 429:
-                print("[CoinGecko] Prices rate limited, skipping")
-                return {}
-            resp.raise_for_status()
-            markets = resp.json()
-            result = {}
-            for coin in markets:
-                cid = coin.get("id", "")
-                result[cid] = {
-                    "current_price": coin.get("current_price", 0),
-                    "market_cap": coin.get("market_cap", 0),
-                    "total_volume": coin.get("total_volume", 0),
-                    "price_change_24h": coin.get("price_change_24h", 0),
-                    "price_change_percentage_24h": coin.get("price_change_percentage_24h", 0),
-                    "sparkline_prices": (coin.get("sparkline_in_7d") or {}).get("price", [])[-24:],
-                }
-            return result
+            r = self.s.get(f"{COINGECKO_BASE}/coins/markets", params={
+                "vs_currency": "usd", "ids": ",".join(ids),
+                "order": "market_cap_desc", "per_page": 50, "page": 1,
+                "sparkline": "true", "price_change_percentage": "24h"}, timeout=15)
+            if r.status_code == 429: return {}
+            r.raise_for_status()
+            out = {}
+            for coin in r.json():
+                cid = coin.get("id","")
+                sp7 = (coin.get("sparkline_in_7d") or {}).get("price", [])
+                out[cid] = {"current_price": coin.get("current_price",0), "market_cap": coin.get("market_cap",0),
+                    "total_volume": coin.get("total_volume",0),
+                    "price_change_percentage_24h": coin.get("price_change_percentage_24h",0),
+                    "sparkline_full": sp7, "sparkline_prices": sp7[-24:] if sp7 else []}
+            return out
+        except Exception as e: print(f"[CG] Prices: {e}"); return {}
+    def get_dev_data(self, ids):
+        """Fetch developer + community data in parallel batches (4 per batch)."""
+        out = {}
+        lock = threading.Lock()
+        def _fetch_one(cid):
+            try:
+                r = self.s.get(f"{COINGECKO_BASE}/coins/{cid}", params={
+                    "localization":"false", "tickers":"false", "market_data":"false",
+                    "community_data":"true", "developer_data":"true", "sparkline":"false"}, timeout=15)
+                if r.status_code == 200:
+                    data = r.json()
+                    with lock:
+                        out[cid] = {"community_score": _dev_score(data), "community_raw": _community_score(data)}
+                else:
+                    print(f"[CG] Dev {cid}: {r.status_code}")
+            except Exception as e:
+                print(f"[CG] Dev {cid}: {e}")
+        for i in range(0, len(ids), 4):
+            batch = ids[i:i+4]
+            with ThreadPoolExecutor(max_workers=4) as pool:
+                pool.map(_fetch_one, batch)
+            if i + 4 < len(ids):
+                self._rl()
+        print(f"[CG] Dev+Community: {len(out)}/{len(ids)}")
+        return out
+    def fetch_all(self):
+        coins = self.fetch_top_prices(100)
+        if not coins: return []
+        ids = [c["id"] for c in coins if c["id"]]
+        # Try to enrich with dev data (may be incomplete due to rate limits)
+        try:
+            dev = self.get_dev_data(ids)
+            for c in coins:
+                dd = dev.get(c["id"], {})
+                if dd:
+                    c["community_score"] = dd.get("community_score", 0)
+                    c["community_raw"] = dd.get("community_raw", 0)
         except Exception as e:
-            print(f"[CoinGecko] Price fetch error: {e}")
-            return {}
-
-    def fetch_all(self) -> list[dict]:
-        """Fetch trending coins + prices + social signals (Reddit, Google Trends)."""
-        trending = self.get_trending()
-        if not trending:
-            return []
-        coin_ids = [c["id"] for c in trending if c["id"]]
-        prices = self.get_prices(coin_ids)
-        
-        # --- Social signals: Reddit mentions ---
-        coin_names = [c["name"] for c in trending]
-        reddit = RedditFetcher()
-        mentions = reddit.fetch_all_mentions(coin_names)
-        print(f"[Reddit] Mentions: {dict((k,v) for k,v in mentions.items() if v > 0)}")
-        
-        # --- Social signals: Google Trends ---
-        trends = TrendsFetcher()
-        trends_scores = trends.fetch_scores(coin_names)
-        print(f"[Trends] Got scores for {sum(1 for v in trends_scores.values() if v > 0)}/{len(trends_scores)} coins")
-        
-        combined = []
-        for coin in trending:
-            cid = coin["id"]
-            price_info = prices.get(cid, {})
-            name = coin["name"]
-            reddit_count = mentions.get(name, 0)
-            trends_score = trends_scores.get(name, 0)
-            combined.append({
-                **coin,
-                "current_price": price_info.get("current_price", 0),
-                "market_cap": price_info.get("market_cap", 0),
-                "total_volume": price_info.get("total_volume", 0),
-                "price_change_24h": price_info.get("price_change_24h", 0),
-                "price_change_percentage_24h": price_info.get("price_change_percentage_24h", 0),
-                "sparkline_prices": price_info.get("sparkline_prices", []),
-                "reddit_mentions": reddit_count,
-                "google_trends_score": trends_score,
-            })
-        return combined
+            print(f"[CG] Dev enrichment: {e}")
+        # Reddit mentions
+        try:
+            reddit = RedditFetcher()
+            mentions = reddit.fetch_mentions(coins)
+            _save_mention_snapshot(mentions)
+            for c in coins:
+                c["reddit_mentions"] = mentions.get(c["id"], 0)
+        except Exception as e:
+            print(f"[Reddit] Error: {e}")
+        return coins
