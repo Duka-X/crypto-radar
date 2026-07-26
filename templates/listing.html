@@ -1,0 +1,17 @@
+﻿<!DOCTYPE html>
+<html lang=en>
+<head><meta charset=UTF-8><meta name=viewport content="width=device-width,initial-scale=1.0"><title>{{ page_title }}</title><meta name="description" content="{{ page_description }}"><link rel="canonical" href="https://cryptoradar.dev{{ request.url.path }}"><meta property="og:title" content="{{ page_title }}"><meta property="og:description" content="{{ page_description }}"><meta property="og:url" content="https://cryptoradar.dev{{ request.url.path }}"><meta property="og:type" content="website"><meta name="twitter:card" content="summary_large_image"><link rel=stylesheet href=/static/style.css></head>
+<body>
+<header class=header><div class=container><div class=header-top><a href=/ class=logo>CryptoRadar<span class=logo-dot>.</span></a></div><h1 style="font-size:1.4rem;margin:8px 0 2px">{{ page_heading }}</h1><p class=tagline style="margin-bottom:4px">{{ page_subtitle }}</p><div class=header-meta><span class=meta-item>{{ coins|length }} tokens</span><span class=meta-item>Sorted by <strong>{{ sort_label }}</strong></span><a href=/ class=refresh-btn style="text-decoration:none">&larr; Home</a></div></div></header>
+<main class=container><section class=rankings><div class=table-wrapper><table>
+<thead><tr><th class=col-rank>#</th><th class=col-coin>Coin</th><th class=col-price>Price</th><th class=col-change>24h%</th><th class=col-sort>{{ sort_label }}</th><th class=col-score>Score</th></tr></thead>
+<tbody>{% for coin in coins %}<tr><td class=col-rank>{{ coin.rank }}</td>
+<td class=col-coin>{% if coin.thumb %}<img src="{{ coin.thumb }}" alt="" width=24 height=24 class=coin-icon>{% endif %}<div class=coin-info><a href=/token/{{ coin.id }} class=coin-name>{{ coin.name }}</a><span class=coin-symbol>{{ coin.symbol }}</span></div></td>
+<td class=col-price>{% if coin.current_price and coin.current_price>0 %}${{ "%.4f"|format(coin.current_price) if coin.current_price<0.01 else "%.2f"|format(coin.current_price) }}{% else %}&mdash;{% endif %}</td>
+<td class=col-change>{% if coin.price_change_percentage_24h is not none %}<span class="change {% if coin.price_change_percentage_24h>=0 %}positive{% else %}negative{% endif %}">{{ "%+.2f"|format(coin.price_change_percentage_24h) }}%</span>{% else %}&mdash;{% endif %}</td>
+<td class=col-sort>{% if sort_by=="score_change" %}<span class="change {% if coin.score_change and coin.score_change>=0 %}positive{% else %}negative{% endif %}">{{ "%+.1f"|format(coin.score_change) }}</span>{% else %}<span class=score-value>{{ "%2.f"|format(coin.score_momentum) }}</span>{% endif %}</td>
+<td class=col-score><div class=score-bar-container><div class=score-bar style="width:{{ coin.signal_score }}%"></div></div><span class=score-value>{{ coin.signal_score }}</span></td>
+</tr>{% endfor %}{% if not coins %}<tr><td colspan=6 class=empty>Not enough data yet. Check back after the next data refresh.</td></tr>{% endif %}</tbody></table></div></section>
+<section class=legend><div class=legend-grid><div class=legend-card><h4>About this page</h4><p>{{ page_description }}</p></div></div></section></main>
+<footer class=footer><div class=container><p>Data from <a href=https://www.coingecko.com target=_blank>CoinGecko</a> &middot; <a href=/>Home</a> &middot; <a href=/trending>Trending</a> &middot; <a href=/most-volatile>Most Volatile</a></p></div></footer>
+</body></html>
