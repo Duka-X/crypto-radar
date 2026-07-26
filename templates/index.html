@@ -108,13 +108,13 @@
                         <span class="bd-label">P</span>
                         <span class="bd-val">{{ coin.score_price }}</span>
                     </div>
-                    <div class="bd-item" title="Google Trends score">
-                        <span class="bd-label">G</span>
-                        <span class="bd-val">{{ coin.score_trends }}</span>
+                    <div class="bd-item" title="Momentum (sparkline) score">
+                        <span class="bd-label">M</span>
+                        <span class="bd-val">{{ coin.score_momentum }}</span>
                     </div>
-                    <div class="bd-item" title="Reddit mention score">
-                        <span class="bd-label">R</span>
-                        <span class="bd-val">{{ coin.score_reddit }}</span>
+                    <div class="bd-item" title="Community (market rank) score">
+                        <span class="bd-label">C</span>
+                        <span class="bd-val">{{ coin.score_community }}</span>
                     </div>
                     <div class="bd-item" title="Volume ratio score">
                                         <span class="bd-label">V</span>
@@ -142,8 +142,8 @@
                     <p>Composite ranking combining trending popularity, 24h price action, and volume-to-market-cap ratio. Higher = more attention across dimensions.</p>
                 </div>
                 <div class="legend-card">
-                    <h4>Breakdown (T / P / G / R / V)</h4>
-                    <p><strong>T</strong> = CoinGecko Trending &middot; <strong>P</strong> = Price Action &middot; <strong>G</strong> = Google Trends &middot; <strong>R</strong> = Reddit Mentions &middot; <strong>V</strong> = Volume Surge. Each normalized 0&ndash;100.</p>
+                    <h4>Breakdown (T / P / M / V / C)</h4>
+                    <p><strong>T</strong> = CoinGecko Trending &middot; <strong>P</strong> = Price Action &middot; <strong>M</strong> = Momentum (sparkline) &middot; <strong>C</strong> = Community (market rank) &middot; <strong>V</strong> = Volume Surge. Each normalized 0&ndash;100.</p>
                 </div>
                 <div class="legend-card">
                     <h4>Not financial advice</h4>
