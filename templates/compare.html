@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Compare {{ coin1.name if coin1 else t1_id }} vs {{ coin2.name if coin2 else t2_id }} — CryptoRadar</title>
+<meta name="description" content="Side-by-side comparison of {{ coin1.name if coin1 else t1_id }} and {{ coin2.name if coin2 else t2_id }}: signal scores, price, market cap.">
+<link rel=stylesheet href=/static/style.css>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-33MYYVE2Y4"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());gtag("config","G-33MYYVE2Y4");</script>
+</head><body>
+<header class=header><div class=container><div class=header-top><a href=/ class=logo>CryptoRadar<span class=logo-dot>.</span></a></div>
+<h1 style="font-size:1.3rem">{{ coin1.name if coin1 else t1_id|capitalize }} vs {{ coin2.name if coin2 else t2_id|capitalize }}</h1></div></header>
+<main class=container>{% if coin1 and coin2 %}
+<div style="display:grid;grid-template-columns:1fr auto 1fr;gap:1.5rem;margin:2rem 0">
+{% macro coin_card(coin) %}
+<div class=info-card style="text-align:center"><h2 style="margin-bottom:1rem">{{ coin.name }} <small style="color:var(--text-secondary)">{{ coin.symbol }}</small></h2>
+<div style="font-size:2.5rem;font-weight:700;color:var(--accent)">{{ coin.signal_score }}</div>
+<div style="font-size:.8rem;color:var(--text-secondary);margin-bottom:1rem">Signal Score</div>
+<div style="font-size:1.2rem">${{ "%.4f"|format(coin.current_price) if coin.current_price<0.01 else "%.2f"|format(coin.current_price) }}</div>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:.5rem;margin-top:1rem;font-size:.85rem">
+<div><div style="color:var(--text-secondary)">Mkt Cap</div><div>${{ "{:,.0f}".format(coin.market_cap) if coin.market_cap else "—" }}</div></div>
+<div><div style="color:var(--text-secondary)">24h%</div><div class="{% if coin.price_change_percentage_24h and coin.price_change_percentage_24h>=0 %}positive{% else %}negative{% endif %}">{{ "%+.2f"|format(coin.price_change_percentage_24h) if coin.price_change_percentage_24h is not none else "—" }}%</div></div>
+<div><div style="color:var(--text-secondary)">Vol 24h</div><div>${{ "{:,.0f}".format(coin.total_volume) if coin.total_volume else "—" }}</div></div>
+<div><div style="color:var(--text-secondary)">Rank</div><div>#{{ coin.market_cap_rank or "?" }}</div></div>
+</div></div>{% endmacro %}
+{{ coin_card(coin1) }}
+<div style="display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:700;color:var(--text-secondary)">VS</div>
+{{ coin_card(coin2) }}
+</div>{% else %}
+<div class=not-found><h2>Not found</h2><p>Try <a href="/compare/bitcoin-vs-ethereum">bitcoin vs ethereum</a></p><a href=/ class=back-link>Back</a></div>{% endif %}</main>
+<footer class=footer><div class=container><p>Data from <a href=https://www.coingecko.com target=_blank>CoinGecko</a></p></div></footer>
+</body></html>

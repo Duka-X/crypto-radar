@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{ title }} — CryptoRadar</title>
+<meta name="description" content="{{ title }}">
+<link rel=stylesheet href=/static/style.css>
+<style>
+.article{max-width:720px;margin:0 auto;padding:24px 20px;line-height:1.8;font-size:.95rem}
+.article h1{font-size:1.5rem}
+.article h2{font-size:1.2rem;margin-top:2rem;border-bottom:1px solid var(--border);padding-bottom:.3rem}
+.article p{margin-bottom:1rem;color:var(--text-secondary)}
+.article a{color:var(--accent)}
+.article table{width:100%;border-collapse:collapse;margin:1rem 0}
+.article th,.article td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--border)}
+.article th{color:var(--text-secondary);font-size:.75rem;text-transform:uppercase}
+.article hr{border:none;border-top:1px solid var(--border);margin:2rem 0}
+</style>
+</head><body>
+<header class=header><div class=container><div class=header-top>
+<a href=/ class=logo>CryptoRadar<span class=logo-dot>.</span></a>
+<a href=/content class=back-link>&larr; Articles</a>
+</div></div></header>
+<main class=article><h1>{{ title }}</h1>
+{{ body|safe }}
+</main>
+<footer class=footer><div class=container><p><a href=/>Home</a> &middot; <a href=/content>Articles</a></p></div></footer>
+</body></html>

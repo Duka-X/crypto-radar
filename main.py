@@ -488,9 +488,34 @@ _last_refresh_time = None
 _BACKGROUND_INTERVAL = 3600
 
 
+@app.get("/daily-post", response_class=HTMLResponse)
+async def daily_post_page(request: Request):
+    return templates.TemplateResponse("daily_post.html", {"request": request})
+
+@app.get("/api-docs", response_class=HTMLResponse)
+async def api_docs_page(request: Request):
+    return templates.TemplateResponse("api_docs.html", {"request": request})
+
+@app.get("/compare/{coins:path}", response_class=HTMLResponse)
+async def compare_page(request: Request, coins: str):
+    snapshot = load_latest_snapshot()
+    data = snapshot or []
+    parts = coins.split("-vs-")
+    c1 = c2 = None
+    t1 = parts[0] if len(parts) > 0 else ""
+    t2 = parts[1] if len(parts) > 1 else ""
+    if data and len(parts) == 2:
+        for coin in data:
+            if coin.get("id", "").lower() == parts[0].strip().lower():
+                c1 = coin
+            if coin.get("id", "").lower() == parts[1].strip().lower():
+                c2 = coin
+    return templates.TemplateResponse("compare.html", {"request": request, "coin1": c1, "coin2": c2, "t1_id": t1, "t2_id": t2})
+
+
 async def _community_poller():
     import math as m
-from data_fetcher import CoinGeckoFetcher
+    from data_fetcher import CoinGeckoFetcher
     while True:
         try:
             await asyncio.sleep(60)

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>CryptoRadar API — Free Crypto Rankings</title>
+<meta name="description" content="Free open API for cryptocurrency rankings and signal scores. No API key required.">
+<link rel=stylesheet href=/static/style.css>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-33MYYVE2Y4"></script>
+<script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());gtag("config","G-33MYYVE2Y4");</script>
+<style>code{background:var(--surface-2);padding:2px 6px;border-radius:4px;font-size:.85rem}pre{background:var(--surface-2);padding:16px;border-radius:8px;overflow-x:auto;font-size:.8rem;border:1px solid var(--border)}.ep{padding:16px 0;border-bottom:1px solid var(--border)}</style>
+</head><body>
+<header class=header><div class=container><div class=header-top><a href=/ class=logo>CryptoRadar<span class=logo-dot>.</span></a></div><h1 style="font-size:1.3rem">API Documentation</h1><p class=tagline>Free open API. No authentication.</p></div></header>
+<main class=container>
+<div class=ep><h3><span style="background:var(--accent);color:#fff;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700">GET</span> <code>/api/rankings</code></h3><p>All 100 ranked tokens with scores, prices, sparklines.</p><pre>curl https://cryptoradar.dev/api/rankings</pre></div>
+<div class=ep><h3><span style="background:var(--accent);color:#fff;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700">GET</span> <code>/api/token/{id}/history</code></h3><p>Token score history. <code>id</code> = CoinGecko ID (e.g. <code>bitcoin</code>).</p><pre>curl https://cryptoradar.dev/api/token/bitcoin/history</pre></div>
+<div class=ep><h3><span style="background:var(--accent);color:#fff;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700">GET</span> <code>/api/token/{id}/chart?days=7</code></h3><p>Historical prices. <code>days=1</code>, <code>7</code>, or <code>30</code>.</p><pre>curl 'https://cryptoradar.dev/api/token/bitcoin/chart?days=30'</pre></div>
+<div class=ep><h3><span style="background:var(--accent);color:#fff;padding:2px 8px;border-radius:4px;font-size:.7rem;font-weight:700">GET</span> <code>/api/last-refresh</code></h3><p>Last refresh timestamp.</p><pre>curl https://cryptoradar.dev/api/last-refresh</pre></div>
+<div style="padding:24px 0"><h3>Rate Limits</h3><p>No auth required. Please limit to 1 req/s. Data refreshed hourly from CoinGecko.</p></div>
+</main>
+<footer class=footer><div class=container><p>Data from <a href=https://www.coingecko.com target=_blank>CoinGecko</a> &middot; <a href=/>Home</a> &middot; <a href=/rss.xml>RSS</a></p></div></footer>
+</body></html>

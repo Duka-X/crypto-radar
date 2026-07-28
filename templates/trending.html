@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Trending Cryptocurrencies — CryptoRadar</title>
+<meta name="description" content="Top trending cryptocurrencies ranked by signal score. Real-time multi-signal analysis of hot tokens.">
+<link rel=stylesheet href=/static/style.css></head>
+<body><header class=header><div class=container><div class=header-top><nav class=breadcrumb><a href=/>Home</a><span class=sep>/</span><span class=current>Trending</span></nav>
+<h1 class=logo>Trending<span class=logo-dot>.</span></h1></div></div></header>
+<main class=container><section class=rankings><div class=table-wrapper><table><thead><tr><th class=col-rank>#</th><th class=col-coin>Coin</th><th class=col-price>Price</th><th class=col-change>24h%</th><th class=col-sparkle>Chart</th><th class=col-score>Score</th></tr></thead><tbody>
+{% for coin in coins %}<tr><td class=col-rank>{{ loop.index }}</td><td class=col-coin><div class=coin-info><a href=/token/{{ coin.id }} class=coin-name>{{ coin.name }}</a></div></td>
+<td class=col-price>${{ "%.4f"|format(coin.current_price) if coin.current_price<0.01 else "%.2f"|format(coin.current_price) }}</td>
+<td class=col-change><span class="change {% if coin.price_change_percentage_24h>=0 %}positive{% else %}negative{% endif %}">{{ "%+.2f"|format(coin.price_change_percentage_24h) }}%</span></td>
+<td class=col-sparkle>{% if coin.sparkline_prices and coin.sparkline_prices|length>1 %}{% set mn=coin.sparkline_prices|min %}{% set mx=coin.sparkline_prices|max %}{% set rg=mx-mn if mx>mn else 1 %}
+<svg width=80 height=24 viewBox="0 0 80 24"><polyline fill=none stroke="{% if coin.sparkline_prices[-1]>=coin.sparkline_prices[0] %}#22c57a{% else %}#f25a5f{% endif %}" stroke-width=1.5 points="{% for p in coin.sparkline_prices %}{{ (80*loop.index0/(coin.sparkline_prices|length-1))|round(1) }},{{ (24-((p-mn)/rg*22+1))|round(1) }}{% if not loop.last %} {% endif %}{% endfor %}"/></svg>{% else %}&mdash;{% endif %}</td>
+<td class=col-score><div class=score-bar-container><div class=score-bar style="width:{{ coin.signal_score }}%"></div></div>{{ coin.signal_score }}</td></tr>{% endfor %}</tbody></table></div></section></main>
+<footer class=footer><div class=container><p>Data from <a href=https://www.coingecko.com target=_blank>CoinGecko</a></p></div></footer></body></html>

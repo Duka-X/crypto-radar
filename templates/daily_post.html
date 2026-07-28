@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Daily Post — CryptoRadar</title>
+<link rel=stylesheet href=/static/style.css>
+<style>
+.copy-area{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;font-size:.9rem;line-height:1.5;white-space:pre-wrap;word-break:break-word;min-height:80px;font-family:SFMono-Regular,Consolas,monospace}
+.btn-copy{background:var(--accent);color:#fff;border:none;padding:10px 24px;border-radius:6px;font-size:.9rem;font-weight:600;cursor:pointer;margin-top:12px;transition:opacity .15s}
+.btn-copy:hover{opacity:.85}.btn-copy.copied{background:var(--green)}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);margin:0}
+.container{max-width:640px;margin:0 auto;padding:20px}
+h1{font-size:1.3rem;margin-bottom:.2rem}
+.tag{color:var(--text-secondary);font-size:.85rem;margin-bottom:1rem}
+.badge-x{display:inline-block;background:#1d9bf0;color:#fff;padding:2px 10px;border-radius:4px;font-size:.75rem;font-weight:600;vertical-align:middle}
+.viz-section{margin-bottom:1.5rem}
+.dp-icon{width:20px;height:20px;border-radius:50%;flex-shrink:0;vertical-align:middle;margin-right:6px}
+.dp-card { margin-bottom:8px; background:var(--card-bg); border-radius:6px; padding:8px 12px; }
+.dp-row { display:flex; align-items:center; gap:8px; }
+.dp-rank { font-size:14px; font-weight:700; color:var(--text-dim); min-width:20px; }
+.dp-name { font-size:13px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex-shrink:1; min-width:0; }
+.dp-bar-wrap { flex:1; height:8px; background:rgba(255,255,255,0.08); border-radius:4px; overflow:hidden; margin:0 4px; min-width:40px; }
+.dp-bar { height:100%; border-radius:4px; }
+.dp-score { font-size:14px; font-weight:700; color:var(--accent); min-width:26px; text-align:right; }
+.dp-change { font-size:12px; font-weight:600; min-width:50px; text-align:right; }
+.dp-spark { flex-shrink:0; }
+</style>
+</head><body>
+<div class=container>
+<a href=/ class=back-link>&larr; Home</a>
+<h1>Daily Post <span class=badge-x>Copy &amp; Tweet</span></h1>
+<p class=tag>Visual rankings + ready-to-post tweet</p>
+<div id=vizArea class=viz-section></div>
+<div class=copy-area id=tweetText>Loading...</div>
+<br>
+<button class=btn-copy onclick=copyTweet() id=copyBtn>Copy tweet text</button>
+<p style=margin-top:10px;font-size:.8rem;color:var(--text-secondary)>
+<a href="https://x.com" target=_blank id=xLink style=color:var(--accent)>Open in X to post &rarr;</a>
+</p>
+</div>
+<script>
+var coins=[];
+(function(){var x=new XMLHttpRequest();x.open('GET','/api/rankings',false);x.send();try{coins=JSON.parse(x.responseText||'[]')}catch(e){}})();
+
+// Visual chart section
+function sparkHTML(id,prices){if(!prices||prices.length<2)return'';var mn=Math.min.apply(null,prices),mx=Math.max.apply(null,prices),rg=mx-mn||1;var pts='';for(var i=0;i<prices.length;i++){var xv=80*i/(prices.length-1);var yv=22-(prices[i]-mn)/rg*20;pts+=xv.toFixed(1)+','+yv.toFixed(1);if(i<prices.length-1)pts+=' '}var clr=prices[prices.length-1]>=prices[0]?'#22c57a':'#f25a5f';return'<svg width=80 height=24 viewBox="0 0 80 24" class=dp-spark><polyline fill=none stroke="'+clr+'" stroke-width=1.5 points="'+pts+'"/></svg>'}
+
+var viz='';var top5=coins.slice(0,5);
+for(var i=0;i<top5.length;i++){var c=top5[i];var s=c.signal_score||0;var p=c.price_change_percentage_24h||0;var clr=p>=0?'var(--green)':'var(--red)';viz+='<div class=dp-card><div class=dp-row><div class=dp-rank>'+(i+1)+'</div><img src="'+c.thumb+'" class=dp-icon alt=""><div class=dp-name>'+c.name+'</div><div class=dp-bar-wrap><div class=dp-bar style="width:'+s+'%;background:linear-gradient(90deg,var(--accent-dim),var(--accent))"></div></div><div class=dp-score>'+Math.round(s)+'</div><div class=dp-change style=color:'+clr+'>'+(p>=0?'+':'')+p.toFixed(1)+'%</div>'+sparkHTML(c.id,c.sparkline_prices)+'</div></div>'}
+document.getElementById('vizArea').innerHTML=viz;
+
+// Tweet text
+var d=new Date(),mo=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var ds=mo[d.getUTCMonth()]+' '+d.getUTCDate()+', '+('0'+d.getUTCHours()).slice(-2)+':'+('0'+d.getUTCMinutes()).slice(-2)+' UTC';
+var L=['Top 5 Crypto Rankings '+ds,''];
+for(var i=0;i<5&&i<coins.length;i++){var c=coins[i],s=Math.round(c.signal_score),p=c.price_change_percentage_24h||0,ar=p>=0?'\ud83d\udfe2':'\ud83d\udd34';L.push((i+1)+'. '+c.name+' - Score: '+s+'/100 '+ar+' '+(p>=0?'+':'')+p.toFixed(1)+'%')}
+L.push('','Full rankings: https://cryptoradar.dev','','#Crypto #CryptoRankings #Altcoins');
+var t=L.join('\n');if(t.length>280)t=t.slice(0,277)+'...';
+document.getElementById('tweetText').textContent=t;
+document.getElementById('xLink').href='https://x.com/intent/tweet?text='+encodeURIComponent(t);
+
+function copyTweet(){var b=document.getElementById('copyBtn');navigator.clipboard.writeText(document.getElementById('tweetText').textContent).then(function(){b.textContent='Copied!';b.classList.add('copied');setTimeout(function(){b.textContent='Copy tweet text';b.classList.remove('copied')},2000)})}
+</script>
+</body></html>

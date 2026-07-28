@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Articles — CryptoRadar</title>
+<meta name="description" content="Educational articles about crypto signal scoring and rankings.">
+<link rel=stylesheet href=/static/style.css>
+<style>
+.alist{max-width:640px;margin:0 auto;padding:24px 20px}
+.alist h1{font-size:1.3rem;margin-bottom:1rem}
+.alist .item{padding:12px 0;border-bottom:1px solid var(--border)}
+.alist .item a{font-size:1rem;font-weight:600;color:var(--accent);text-decoration:none}
+</style>
+</head><body>
+<header class=header><div class=container><div class=header-top><a href=/ class=logo>CryptoRadar<span class=logo-dot>.</span></a></div></div></header>
+<main class=alist><h1>Articles</h1>
+{% for a in articles %}<div class=item><a href=/content/{{ a.slug }}>{{ a.title }}</a></div>{% endfor %}
+{% if not articles %}<p style=color:var(--text-secondary)>No articles yet.</p>{% endif %}
+</main>
+<footer class=footer><div class=container><p><a href=/>Home</a></p></div></footer>
+</body></html>
