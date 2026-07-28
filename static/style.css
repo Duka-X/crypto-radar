@@ -15,7 +15,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); line
 .container { max-width: 1280px; margin: 0 auto; padding: 0 20px; }
 .header { padding: 32px 0 20px; border-bottom: 1px solid var(--border); }
 .header-top { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
-.logo { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; }
+.logo { margin: 0; font-size: 1.6rem; font-weight: 700; letter-spacing: -0.01em; }
 .logo-dot { color: var(--accent); }
 .badge { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.08em; background: var(--accent); color: #fff; padding: 2px 8px; border-radius: 4px; font-weight: 600; }
 .tagline { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; }
