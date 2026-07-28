@@ -62,7 +62,7 @@ tbody td { padding: 10px 16px; border-bottom: 1px solid var(--border); vertical-
 tbody tr:last-child td { border-bottom: none; }
 tbody tr:hover { background: var(--surface-2); }
 .col-rank { width: 40px; }
-.rank { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; font-size: 0.75rem; font-weight: 700; background: var(--surface-2); color: var(--text-secondary); }
+.rank { display: flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; font-size: 0.75rem; font-weight: 700; background: var(--surface-2); color: var(--text-secondary); }
 .rank-1 { background: var(--gold); color: #000; }
 .rank-2 { background: var(--silver); color: #000; }
 .rank-3 { background: var(--bronze); color: #fff; }
@@ -183,13 +183,13 @@ tbody tr:hover { background: var(--surface-2); }
 
 /* Logo image */
 .logo-link {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
   text-decoration: none;
 }
 .logo-img {
-  display: block;
   height: 32px;
   width: auto;
 }
+.bar-fill.red { background: linear-gradient(90deg, #b91c1c, #ef4444); }
