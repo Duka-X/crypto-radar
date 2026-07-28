@@ -2,3 +2,11 @@ __pycache__/
 *.pyc
 *.db
 *.db-journal
+
+*.bak
+*.tar.gz
+*.pyc
+data/reddit_mentions.json
+data/community_data.json
+data/description_cache.json
+deploy.json
