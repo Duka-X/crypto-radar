@@ -183,8 +183,9 @@ tbody tr:hover { background: var(--surface-2); }
 
 /* Logo image */
 .logo-link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
+  gap: 8px;
   text-decoration: none;
 }
 .logo-img {
