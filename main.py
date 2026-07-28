@@ -190,22 +190,48 @@ app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="stat
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
-def _patch_community(coins):
+TWITTER_MIN_BASE = 1000
+
+
+def _score_twitter_growth(coins):
     if not coins:
         return
-    try:
-        scores = []
-        for coin in coins:
-            dev = float(coin.get("community_score", 0) or 0)
-            mc = float(coin.get("market_cap", 0) or 1)
-            proxy = m.log(1 + abs(mc)) * 0.05
-            scores.append(round(dev + proxy, 4))
-        order = sorted(range(len(scores)), key=lambda i: scores[i])
-        for rank_pos, idx in enumerate(order):
-            c_val = round(5 + (rank_pos / (len(coins) - 1)) * 90, 1)
-            coins[idx]["score_community"] = c_val
-    except:
-        pass
+    snapshots_file = BASE_DIR / "data" / "community_data.json"
+    if not snapshots_file.exists():
+        for c in coins:
+            c["score_community"] = 50.0
+        return
+    snapshots = json.loads(snapshots_file.read_text())
+    if len(snapshots) < 2:
+        for c in coins:
+            c["score_community"] = 50.0
+        return
+    prev, curr = snapshots[-2], snapshots[-1]
+    growth = {}
+    for cid, cur_vals in curr.items():
+        if cid == "ts":
+            continue
+        pv = prev.get(cid, {})
+        if not isinstance(pv, dict):
+            pv = {}
+        p = float(pv.get("twitter", 0) or 0)
+        c2 = float(cur_vals.get("twitter", 0) or 0)
+        if p >= TWITTER_MIN_BASE:
+            growth[cid] = (c2 - p) / p * 100
+        else:
+            growth[cid] = c2 - p
+    if not growth:
+        return
+    vals = list(growth.values())
+    mn, mx = min(vals), max(vals)
+    for coin in coins:
+        cid = coin.get("id", "")
+        if cid in growth and mx > mn:
+            coin["score_community"] = round(
+                (growth[cid] - mn) / (mx - mn) * 100, 1
+            )
+        else:
+            coin["score_community"] = 50.0
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -214,7 +240,7 @@ async def index(request: Request):
     coins = load_latest_snapshot()
     if not coins:
         coins = []
-    _patch_community(coins)
+    _score_twitter_growth(coins)
     trending_up = sum(1 for c in coins if (c.get("price_change_percentage_24h") or 0) > 0)
     trending_down = len(coins) - trending_up
 
@@ -406,7 +432,7 @@ async def trending_page(request: Request):
             curr = float(coin.get("signal_score", 0) or 0)
             coin["score_change"] = round(curr - prev, 1)
         coins = sorted(current, key=lambda x: x.get("score_change", 0), reverse=True)
-        _patch_community(coins)
+        _score_twitter_growth(coins)
     
     for i, c in enumerate(coins):
         c["rank"] = i + 1
@@ -429,7 +455,7 @@ async def most_volatile_page(request: Request):
     if not coins:
         coins = []
     coins = sorted(coins, key=lambda x: float(x.get("score_momentum", 0) or 0), reverse=True)
-    _patch_community(coins)
+    _score_twitter_growth(coins)
     for i, c in enumerate(coins):
         c["rank"] = i + 1
     return templates.TemplateResponse("listing.html", {
