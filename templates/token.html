@@ -2,16 +2,30 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="description" content="CryptoRadar signal ranking for {{ token.name }} ({{ token.symbol }})">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% if token %}{{ token.name }} ({{ token.symbol }}){% else %}Token{% endif %} - CryptoRadar</title>
     <link rel="stylesheet" href="/static/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+.description-section { margin:24px 0; padding:16px; background:var(--card-bg); border-radius:8px; }
+.description-section h3 { margin:0 0 8px; font-size:15px; color:var(--text); }
+.coin-description { font-size:13px; line-height:1.6; color:var(--text-dim); }
+.coin-links { display:flex; gap:8px; flex-wrap:wrap; margin-top:12px; }
+.link-btn { display:inline-block; padding:6px 14px; border-radius:6px; font-size:12px; background:rgba(255,255,255,0.08); color:var(--accent); text-decoration:none; }
+.link-btn:hover { background:rgba(99,102,241,0.2); }
+.chart-time { margin:6px 0 0; font-size:11px; color:var(--text-dim); text-align:center; }
+</style>
+<style>\n.bar-fill.red { background: linear-gradient(90deg, #b91c1c, #ef4444); }\n.bar-fill.pink { background: linear-gradient(90deg, #a21caf, #d946ef); }\n</style>\n<style>
+.bar-fill.red { background: linear-gradient(90deg, #b91c1c, #ef4444); }
+.bar-fill.pink { background: linear-gradient(90deg, #a21caf, #d946ef); }
+</style>
 </head>
 <body>
     <header class="header">
         <div class="container">
             <div class="header-top">
-                <a href="/" class="logo-link"><img src="/static/logo.svg" alt="CryptoRadar" class="logo-img"><span class="logo">CryptoRadar<span class="logo-dot">.</span></span></a><a href="/" class="back-link">&larr; Back to Rankings</a>
+                <a href="/" class="back-link">&larr; Back to Rankings</a>
                 {% if token %}
                 <h1 class="logo token-header">
                     {% if token.thumb %}<img src="{{ token.thumb }}" alt="" class="coin-icon-lg" width="32" height="32">{% endif %}
@@ -72,12 +86,12 @@
                     <span class="bar-value">{{ token.score_price }}</span>
                 </div>
                 <div class="bar-item">
-                    <span class="bar-label">Trends (G)</span>
+                    <span class="bar-label">Momentum (M)</span>
                     <div class="bar-track"><div class="bar-fill red" style="width:{{ token.score_momentum }}%"></div></div>
                     <span class="bar-value">{{ token.score_momentum }}</span>
                 </div>
                 <div class="bar-item">
-                    <span class="bar-label">Reddit (R)</span>
+                    <span class="bar-label">Community (C)</span>
                     <div class="bar-track"><div class="bar-fill pink" style="width:{{ token.score_community }}%"></div></div>
                     <span class="bar-value">{{ token.score_community }}</span>
                 </div>
@@ -89,6 +103,24 @@
             </div>
         </section>
 
+        </section>
+
+        {% if coin_info and coin_info.description %}
+        <section class="description-section">
+            <h3>About {{ token.name }}</h3>
+            <p class="coin-description">{{ coin_info.description }}</p>
+            {% if coin_info.homepage or coin_info.twitter or coin_info.reddit or coin_info.discord or coin_info.telegram %}
+            <div class="coin-links">
+                {% if coin_info.homepage %}<a href="{{ coin_info.homepage }}" target="_blank" class="link-btn" rel="nofollow">Website</a>{% endif %}
+                {% if coin_info.twitter %}<a href="https://x.com/{{ coin_info.twitter }}" target="_blank" class="link-btn" rel="nofollow">Twitter/X</a>{% endif %}
+                {% if coin_info.reddit %}<a href="{{ coin_info.reddit }}" target="_blank" class="link-btn" rel="nofollow">Reddit</a>{% endif %}
+                {% if coin_info.discord %}<a href="{{ coin_info.discord }}" target="_blank" class="link-btn" rel="nofollow">Discord</a>{% endif %}
+                {% if coin_info.telegram %}<a href="https://t.me/{{ coin_info.telegram }}" target="_blank" class="link-btn" rel="nofollow">Telegram</a>{% endif %}
+            </div>
+            {% endif %}
+        </section>
+        {% endif %}
+
         <!-- Charts -->
         <section class="chart-section">
             <h3>24h Price Trend</h3>
@@ -96,9 +128,30 @@
             <div class="chart-wrapper">
                 <canvas id="priceChart"></canvas>
             </div>
+            <p class="chart-time">Last 24 hours &middot; Hourly</p>
             {% else %}
             <p class="no-data">Price data not available yet.</p>
             {% endif %}
+        </section>
+
+        <section class="chart-section">
+            <h3>7D Price Trend</h3>
+            {% if token.sparkline_full and token.sparkline_full|length > 1 %}
+            <div class="chart-wrapper">
+                <canvas id="priceChart7d"></canvas>
+            </div>
+            <p class="chart-time">Last 7 days &middot; Hourly</p>
+            {% else %}
+            <p class="no-data">7-day price data not available.</p>
+            {% endif %}
+        </section>
+
+        <section class="chart-section">
+            <h3>30D Price Trend</h3>
+            <div class="chart-wrapper">
+                <canvas id="priceChart30d"></canvas>
+            </div>
+            <p class="chart-time" id="chart30d-status">Loading 30-day data...</p>
         </section>
 
         <section class="chart-section">
@@ -239,6 +292,46 @@
         }
     });
     {% endif %}
+
+    {% if token.sparkline_full and token.sparkline_full|length > 1 %}
+    // 7D Price Chart
+    var sp7d = [{% for p in token.sparkline_full %}{{ p }}{% if not loop.last %},{% endif %}{% endfor %}];
+    var up7d = sp7d[sp7d.length - 1] >= sp7d[0];
+    var clr7d = up7d ? "#22c57a" : "#f25a5f";
+    var dayLabels = [];
+    for (var i = 0; i < sp7d.length; i++) {
+        if (i % 24 === 0 || i === sp7d.length - 1) {
+            var d = Math.floor(i / 24) + 1;
+            dayLabels.push("D" + d);
+        } else { dayLabels.push(""); }
+    }
+    new Chart(document.getElementById("priceChart7d"), {
+        type: "line",
+        data: { labels: dayLabels, datasets: [{ data: sp7d, borderColor: clr7d, backgroundColor: clr7d + "18", borderWidth: 1.5, fill: true, tension: 0.3, pointRadius: 0 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: "rgba(255,255,255,0.06)" }, ticks: { color: "#8a92a6", maxTicksLimit: 6 } }, x: { grid: { display: false }, ticks: { color: "#8a92a6", maxRotation: 45 } } } }
+    });
+    {% endif %}
+
+    // 30D Price Chart (fetched async)
+    fetch("/api/token/{{ token_id }}/chart?days=30")
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.prices && data.prices.length > 1) {
+                var p30 = data.prices.map(function(p) { return p[1]; });
+                var t30 = data.prices.map(function(p) { var d = new Date(p[0]); return (d.getMonth()+1)+"/"+d.getDate(); });
+                var up30 = p30[p30.length-1] >= p30[0];
+                var clr30 = up30 ? "#22c57a" : "#f25a5f";
+                document.getElementById("chart30d-status").textContent = "Last 30 days · Daily";
+                new Chart(document.getElementById("priceChart30d"), {
+                    type: "line",
+                    data: { labels: t30, datasets: [{ data: p30, borderColor: clr30, backgroundColor: clr30+"18", borderWidth: 1.5, fill: true, tension: 0.3, pointRadius: 0 }] },
+                    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { grid: { color: "rgba(255,255,255,0.06)" }, ticks: { color: "#8a92a6", maxTicksLimit: 6 } }, x: { grid: { display: false }, ticks: { color: "#8a92a6", maxTicksLimit: 10, maxRotation: 45 } } } }
+                });
+            } else {
+                document.getElementById("chart30d-status").textContent = "30-day data unavailable";
+            }
+        })
+        .catch(function() { document.getElementById("chart30d-status").textContent = "Failed to load 30-day data"; });
 </script>
     {% endif %}
 </body>

@@ -96,7 +96,7 @@ def get_latest_growth() -> dict:
     snapshots = json.loads(COMMUNITY_DATA.read_text())
     if len(snapshots) < 2:
         return {}
-    prev, curr = snapshots[-2], snapshots[-1]
+    prev, curr = snapshots[0], snapshots[-1]
     growth = {}
     for token_id, curr_vals in curr.items():
         if token_id == "ts":
@@ -206,7 +206,7 @@ def _score_twitter_growth(coins):
         for c in coins:
             c["score_community"] = 50.0
         return
-    prev, curr = snapshots[-2], snapshots[-1]
+    prev, curr = snapshots[0], snapshots[-1]
     growth = {}
     for cid, cur_vals in curr.items():
         if cid == "ts":
@@ -217,9 +217,9 @@ def _score_twitter_growth(coins):
         p = float(pv.get("twitter", 0) or 0)
         c2 = float(cur_vals.get("twitter", 0) or 0)
         if p >= TWITTER_MIN_BASE:
-            growth[cid] = (c2 - p) / p * 100
+            growth[cid] = (c2 - p) / p * 100 * 60 * 60
         else:
-            growth[cid] = c2 - p
+            growth[cid] = (c2 - p) * 60
     if not growth:
         return
     vals = list(growth.values())
@@ -240,7 +240,6 @@ async def index(request: Request):
     coins = load_latest_snapshot()
     if not coins:
         coins = []
-    _score_twitter_growth(coins)
     trending_up = sum(1 for c in coins if (c.get("price_change_percentage_24h") or 0) > 0)
     trending_down = len(coins) - trending_up
 
@@ -432,8 +431,7 @@ async def trending_page(request: Request):
             curr = float(coin.get("signal_score", 0) or 0)
             coin["score_change"] = round(curr - prev, 1)
         coins = sorted(current, key=lambda x: x.get("score_change", 0), reverse=True)
-        _score_twitter_growth(coins)
-    
+        
     for i, c in enumerate(coins):
         c["rank"] = i + 1
     
@@ -455,7 +453,6 @@ async def most_volatile_page(request: Request):
     if not coins:
         coins = []
     coins = sorted(coins, key=lambda x: float(x.get("score_momentum", 0) or 0), reverse=True)
-    _score_twitter_growth(coins)
     for i, c in enumerate(coins):
         c["rank"] = i + 1
     return templates.TemplateResponse("listing.html", {
