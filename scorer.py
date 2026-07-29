@@ -1,3 +1,4 @@
+import math as m
 class SignalScorer:
     WEIGHTS = {"trending_score":0.17,"price_change_24h":0.13,"momentum":0.17,"volume_score":0.35,"community":0.18}
 
@@ -67,7 +68,7 @@ class SignalScorer:
         rp = [self._pa(c) for c in coins]
         rtv = [self._f(c.get("trending_velocity",0)) for c in coins]
         rm = [self._momentum(c.get("sparkline_full",[]) or c.get("sparkline_prices",[])) for c in coins]
-        rv = [min(self._f(c.get("total_volume",0))/max(self._f(c.get("market_cap",0)),1)*100,100) if self._f(c.get("market_cap",0))>0 else 0 for c in coins]
+        rv = [m.log(1 + self._f(c.get("total_volume", 0))) for c in coins]
         rc = [self._community_score(c, coins) for c in coins]
         nt = self._n(rt); ntv = self._n(rtv); np_ = self._n(rp)
         nm = self._n(rm); nv = self._n(rv)
