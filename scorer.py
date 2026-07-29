@@ -53,7 +53,9 @@ class SignalScorer:
 
     def _pa(self, coin):
         sp = coin.get("sparkline_prices", []) or []
-        if len(sp) < 4: return 0.0
+        if len(sp) < 4:
+            # Fallback: use 24h price change from Binance
+            return (coin.get("price_change_percentage_24h", 0) or 0) / 100.0
         pn = sp[-1]; p1 = sp[-2]; p24 = sp[0]
         c1 = (pn - p1) / max(p1, 1e-10)
         c24 = (pn - p24) / max(p24, 1e-10)
