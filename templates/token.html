@@ -16,7 +16,7 @@
 .link-btn:hover { background:rgba(99,102,241,0.2); }
 .chart-time { margin:6px 0 0; font-size:11px; color:var(--text-dim); text-align:center; }
 </style>
-<style>\n.bar-fill.red { background: linear-gradient(90deg, #b91c1c, #ef4444); }\n.bar-fill.pink { background: linear-gradient(90deg, #a21caf, #d946ef); }\n</style>\n<style>
+<style>.bar-fill.red { background: linear-gradient(90deg, #b91c1c, #ef4444); }.bar-fill.pink { background: linear-gradient(90deg, #a21caf, #d946ef); }</style><style>
 .bar-fill.red { background: linear-gradient(90deg, #b91c1c, #ef4444); }
 .bar-fill.pink { background: linear-gradient(90deg, #a21caf, #d946ef); }
 </style>
@@ -91,11 +91,6 @@
                     <span class="bar-value">{{ token.score_momentum }}</span>
                 </div>
                 <div class="bar-item">
-                    <span class="bar-label">Community (C)</span>
-                    <div class="bar-track"><div class="bar-fill pink" style="width:{{ token.score_community }}%"></div></div>
-                    <span class="bar-value">{{ token.score_community }}</span>
-                </div>
-                <div class="bar-item">
                     <span class="bar-label">Volume (V)</span>
                     <div class="bar-track"><div class="bar-fill orange" style="width:{{ token.score_volume }}%"></div></div>
                     <span class="bar-value">{{ token.score_volume }}</span>
@@ -105,21 +100,13 @@
 
         </section>
 
-        {% if coin_info and coin_info.description %}
-        <section class="description-section">
-            <h3>About {{ token.name }}</h3>
-            <p class="coin-description">{{ coin_info.description }}</p>
-            {% if coin_info.homepage or coin_info.twitter or coin_info.reddit or coin_info.discord or coin_info.telegram %}
-            <div class="coin-links">
-                {% if coin_info.homepage %}<a href="{{ coin_info.homepage }}" target="_blank" class="link-btn" rel="nofollow">Website</a>{% endif %}
-                {% if coin_info.twitter %}<a href="https://x.com/{{ coin_info.twitter }}" target="_blank" class="link-btn" rel="nofollow">Twitter/X</a>{% endif %}
-                {% if coin_info.reddit %}<a href="{{ coin_info.reddit }}" target="_blank" class="link-btn" rel="nofollow">Reddit</a>{% endif %}
-                {% if coin_info.discord %}<a href="{{ coin_info.discord }}" target="_blank" class="link-btn" rel="nofollow">Discord</a>{% endif %}
-                {% if coin_info.telegram %}<a href="https://t.me/{{ coin_info.telegram }}" target="_blank" class="link-btn" rel="nofollow">Telegram</a>{% endif %}
-            </div>
-            {% endif %}
+          {% if token_description %}
+          <section class="description-section">
+              <h3>About {{ token.name }}</h3>
+              <p class="coin-description">{{ token_description }}</p>
+          </section>
+          {% endif %}
         </section>
-        {% endif %}
 
         <!-- Charts -->
         <section class="chart-section">

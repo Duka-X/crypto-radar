@@ -67,10 +67,8 @@ def _get_description(token_id: str) -> str | None:
             cache[token_id] = desc
             _save_desc_cache(cache)
             return desc if desc else None
-        else:
-            cache[token_id] = ""
-            _save_desc_cache(cache)
-            return None
+        print(f"[Desc] {token_id}: HTTP {r.status_code}")
+        return None
     except Exception as e:
         print(f"[Desc] {token_id}: {e}")
         return None
@@ -96,7 +94,15 @@ def get_latest_growth() -> dict:
     snapshots = json.loads(COMMUNITY_DATA.read_text())
     if len(snapshots) < 2:
         return {}
-    prev, curr = snapshots[0], snapshots[-1]
+    # Snapshot ~1 hour ago vs latest
+    curr = snapshots[-1]
+    curr_ts = datetime.fromisoformat(curr["ts"])
+    target_ts = (curr_ts - timedelta(hours=1)).isoformat()
+    prev = snapshots[0]
+    for snap in reversed(snapshots):
+        if snap["ts"] <= target_ts:
+            prev = snap
+            break
     growth = {}
     for token_id, curr_vals in curr.items():
         if token_id == "ts":
@@ -108,10 +114,11 @@ def get_latest_growth() -> dict:
         for key in ("twitter", "telegram", "reddit"):
             p = float(prev_vals.get(key, 0) or 0)
             c = float(curr_vals.get(key, 0) or 0)
-            base = max(p, COMMUNITY_THRESHOLD)
-            if base > 0:
-                g += (c - p) / base * 100
+            if c > 0 or p > 0:
+                g += m.log(1 + c) - m.log(1 + p)
         growth[token_id] = g
+    nonzero = sum(1 for v in growth.values() if v != 0)
+    print(f"[Growth] {len(growth)} coins, {nonzero} with change")
     return growth
 
 
@@ -173,12 +180,20 @@ def load_latest_snapshot() -> list[dict] | None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _last_refresh_time
     init_db()
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
+        cur = conn.execute("SELECT snapshot_at FROM rankings ORDER BY id DESC LIMIT 1")
+        row = cur.fetchone()
+        if row:
+            _last_refresh_time = datetime.fromisoformat(row[0])
+        conn.close()
+    except:
+        pass
     task = asyncio.create_task(_background_refresher())
-    community_task = asyncio.create_task(_community_poller())
     yield
     task.cancel()
-    community_task.cancel()
     try:
         await task
     except asyncio.CancelledError:
@@ -256,6 +271,10 @@ async def index(request: Request):
 
 @app.post("/refresh")
 async def refresh_data():
+    asyncio.create_task(_run_refresh_now())
+    return {"status": "ok", "message": "refresh started"}
+
+async def _run_refresh_now():
     global _last_refresh_time
     try:
         fetcher = CoinGeckoFetcher()
@@ -265,10 +284,8 @@ async def refresh_data():
             coins = scorer.score(raw)
             save_snapshot(coins)
             _last_refresh_time = datetime.now(timezone.utc)
-            return {"status": "ok", "updated_at": _last_refresh_time.isoformat(), "count": len(coins)}
-        return {"status": "error", "message": "No data from API"}
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        print(f"[Refresh] Error: {e}")
 
 
 @app.get("/api/last-refresh")
@@ -319,23 +336,16 @@ async def api_rankings():
                 comm_raw[cid] = max(comm_raw.get(cid, 0), proxy)
             except:
                 comm_raw[cid] = max(comm_raw.get(cid, 0), 0.01)
-        dev_scores = [float(coin.get("community_score", 0) or 0) for coin in coins]
-        raw_scores = [float(comm_raw.get(coin.get("id", "") or "", 0)) for coin in coins]
-        def to_range(vals, hi):
-            if not vals:
-                return []
-            mn, mx = min(vals), max(vals)
-            if mx > mn:
-                return [(v - mn) / (mx - mn) * hi for v in vals]
-            return [0.0] * len(vals)
-        dev_norm = to_range(dev_scores, 50)
-        raw_norm = to_range(raw_scores, 50)
+        # Community score from growth data only (no absolute size proxy)
+        g_vals = [float(growth.get(c.get("id", ""), 0)) for c in coins]
+        mn_g, mx_g = min(g_vals), max(g_vals)
         for i, coin in enumerate(coins):
-            g = float(growth.get(coin.get("id", "") or "", 0))
-            g_bonus = g / 20 if g > 5 else 0
-            combined = dev_norm[i] + raw_norm[i] + g_bonus
+            g = g_vals[i]
             coin["community_growth"] = g
-            coin["score_community"] = round(combined, 1)
+            if mx_g > mn_g:
+                coin["score_community"] = round((g - mn_g) / (mx_g - mn_g) * 100, 1)
+            else:
+                coin["score_community"] = 50.0
         return coins
     except Exception as e:
         print(f"[API] /api/rankings error: {e}")
@@ -391,7 +401,7 @@ async def token_chart(token_id: str, days: int = 7):
     try:
         r = __import__("requests").get(
             f"https://api.coingecko.com/api/v3/coins/{token_id}/market_chart",
-            params={"vs_currency": "usd", "days": days},
+            params={"vs_currency": "usd", "days": days, "x_cg_demo_api_key": "CG-hUMjhpbkUbBZ4ohNnXwTeVmd"},
             timeout=30,
             headers={"Accept": "application/json", "User-Agent": "CryptoRadar/1.0"}
         )
@@ -536,21 +546,7 @@ async def compare_page(request: Request, coins: str):
     return templates.TemplateResponse("compare.html", {"request": request, "coin1": c1, "coin2": c2, "t1_id": t1, "t2_id": t2})
 
 
-async def _community_poller():
-    import math as m
-    from data_fetcher import CoinGeckoFetcher
-    while True:
-        try:
-            await asyncio.sleep(60)
-            fetcher = CoinGeckoFetcher()
-            coins = load_latest_snapshot()
-            if coins:
-                ids = [c["id"] for c in coins if c.get("id")]
-                community = await asyncio.to_thread(fetcher.fetch_community_data, ids)
-                if community:
-                    save_community_snapshot(community)
-        except Exception as e:
-            print(f"[Community] Poll error: {e}")
+
 
 
 async def _background_refresher():

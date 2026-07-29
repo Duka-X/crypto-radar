@@ -11,14 +11,15 @@
     <header class="header">
         <div class="container">
             <div class="header-top">
-                <a href="/" class="logo-link"><img src="/static/logo.svg" alt="CryptoRadar" class="logo-img"><h1 class="logo">CryptoRadar<span class="logo-dot">.</span></h1></a>
+                <h1 class="logo">CryptoRadar<span class="logo-dot">.</span></h1>
                 <span class="badge">MVP</span>
             </div>
-            <p class="tagline">Multi-Signal Crypto Ranking —Trending &times; Volume &times; Price Action</p>
+            <p class="tagline">Multi-Signal Crypto Ranking &mdash;Trending &times; Momentum &times; Volume &times; Price </p>
             <div class="header-meta">
                 <span class="meta-item">Updated: <span id="refresh-time">{{ updated_at }}</span></span>
                 <span class="meta-item">{{ total_coins }} tokens tracked</span>
                 <span class="meta-item green">&uarr; {{ trending_up }} up</span>
+                <a href="/content" class="meta-item" style="color:var(--accent);text-decoration:none">Articles</a>
                 <span class="meta-item red">&darr; {{ trending_down }} down</span>
                 <button id="refresh-btn" class="refresh-btn" onclick="refreshData()">Refresh</button>
             </div>
@@ -112,10 +113,6 @@
                         <span class="bd-label">M</span>
                         <span class="bd-val">{{ coin.score_momentum }}</span>
                     </div>
-                    <div class="bd-item" title="Community (market rank) score">
-                        <span class="bd-label">C</span>
-                        <span class="bd-val">{{ coin.score_community }}</span>
-                    </div>
                     <div class="bd-item" title="Volume ratio score">
                                         <span class="bd-label">V</span>
                                         <span class="bd-val">{{ coin.score_volume }}</span>
@@ -139,11 +136,11 @@
             <div class="legend-grid">
                 <div class="legend-card">
                     <h4>Signal Score</h4>
-                    <p>Composite ranking combining trending popularity, 24h price action, and volume-to-market-cap ratio. Higher = more attention across dimensions.</p>
+                    <p>Multi-signal ranking combining CoinGecko trending rank, 24h price acceleration, 7-day volatility momentum, and 1h volume surge vs 24h average. Higher = more attention across dimensions.</p>
                 </div>
                 <div class="legend-card">
-                    <h4>Breakdown (T / P / M / V / C)</h4>
-                    <p><strong>T</strong> = CoinGecko Trending &middot; <strong>P</strong> = Price Action &middot; <strong>M</strong> = Momentum (sparkline) &middot; <strong>C</strong> = Community (market rank) &middot; <strong>V</strong> = Volume Surge. Each normalized 0&ndash;100.</p>
+                    <h4>Breakdown (T / P / M / V)</h4>
+                    <p><strong>T</strong> = CoinGecko Trending Rank &middot; <strong>P</strong> = 24h Price Acceleration &middot; <strong>M</strong> = 7-day Momentum (volatility change) &middot; <strong>V</strong> = 1h Volume Surge vs 24h avg. Each normalized 0&ndash;100.</p>
                 </div>
                 <div class="legend-card">
                     <h4>Not financial advice</h4>
@@ -165,28 +162,46 @@
     async function refreshData() {
         var btn = document.getElementById("refresh-btn");
         var toast = document.getElementById("refresh-toast");
+        var curTime = document.getElementById("refresh-time").textContent;
         btn.disabled = true;
-        btn.textContent = "Loading...";
+        btn.textContent = "Refreshing...";
         toast.classList.remove("hidden");
-        toast.textContent = "Fetching latest data...";
+        toast.textContent = "Refreshing data...";
         try {
             var resp = await fetch("/refresh", { method: "POST" });
             var data = await resp.json();
             if (data.status === "ok") {
-                toast.textContent = "Refreshed! Reloading...";
-                setTimeout(function() { location.reload(); }, 800);
+                pollRefresh(curTime, 0);
             } else {
-                toast.textContent = "Error: " + (data.message || "Unknown error");
+                toast.textContent = "Error: " + (data.message || "Unknown");
                 btn.disabled = false;
                 btn.textContent = "Refresh";
                 setTimeout(function() { toast.classList.add("hidden"); }, 4000);
             }
         } catch (e) {
-            toast.textContent = "Network error. Please try again.";
+            toast.textContent = "Network error. Try again.";
             btn.disabled = false;
             btn.textContent = "Refresh";
             setTimeout(function() { toast.classList.add("hidden"); }, 4000);
         }
+    }
+    function pollRefresh(oldTime, attempt) {
+        if (attempt > 30) { location.reload(); return; }
+        var toast = document.getElementById("refresh-toast");
+        toast.textContent = "Refreshing" + ".".repeat((attempt%3)+1) + "  (" + (attempt*2) + "s)";
+        fetch("/api/last-refresh")
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.last_refresh && data.last_refresh.indexOf(oldTime) < 0) {
+                    toast.textContent = "Refreshed! Reloading...";
+                    setTimeout(function() { location.reload(); }, 500);
+                } else {
+                    setTimeout(function() { pollRefresh(oldTime, attempt+1); }, 2000);
+                }
+            })
+            .catch(function() {
+                setTimeout(function() { pollRefresh(oldTime, attempt+1); }, 2000);
+            });
     }
     </script>
 </body>

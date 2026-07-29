@@ -12,6 +12,7 @@ TRENDING_URL = "https://api.coingecko.com/api/v3/search/trending"
 BINANCE_BASE = "https://api.binance.com"
 COINGECKO_COINLIST_URL = f"{COINGECKO_BASE}/coins/list"
 MENTIONS_FILE = Path(__file__).parent / "data" / "reddit_mentions.json"
+COIN_LIST_CACHE_FILE = Path(__file__).parent / "data" / "coin_list_cache.json"
 
 
 def _save_mention_snapshot(mention_counts):
@@ -56,10 +57,11 @@ def _vol_expand(sp):
 
 
 class CoinGeckoFetcher:
+    _coin_list = {}
+    _coin_list_lock = threading.Lock()
     """Mixed-source fetcher: trending + top gainers + small-cap high-volume."""
 
     def __init__(self):
-        self._coin_list = {}
         self.s = requests.Session()
         self.s.headers.update({
             "Accept": "application/json",
@@ -133,26 +135,116 @@ class CoinGeckoFetcher:
         return 0.2
 
     def _get_coin_list(self):
-        """Fetch CoinGecko coin list for symbol->id mapping (cached)."""
-        if self._coin_list:
-            return self._coin_list
-        self._rl()
-        try:
-            r = self.s.get(COINGECKO_COINLIST_URL, timeout=30)
-            r.raise_for_status()
-            coins = r.json()
-            lookup = {}
-            for c in coins:
-                sym = c.get("symbol", "").lower()
-                if sym and c.get("id"):
-                    if sym not in lookup:
-                        lookup[sym] = {"id": c["id"], "name": c.get("name", ""), "symbol": sym.upper()}
-            self._coin_list = lookup
-            print(f"[CG] Coin list: {len(lookup)} symbols")
-            return lookup
-        except Exception as e:
-            print(f"[CG] Coin list error: {e}")
+        """Fetch CoinGecko coin list for symbol->id mapping (cached, thread-safe)."""
+        if CoinGeckoFetcher._coin_list:
+            return CoinGeckoFetcher._coin_list
+        with CoinGeckoFetcher._coin_list_lock:
+            if CoinGeckoFetcher._coin_list:
+                return CoinGeckoFetcher._coin_list
+            # File cache fallback (survives restart & API outage)
+            if COIN_LIST_CACHE_FILE.exists():
+                try:
+                    data = json.loads(COIN_LIST_CACHE_FILE.read_text())
+                    if data and isinstance(data, dict) and len(data) > 1000:
+                        CoinGeckoFetcher._coin_list = data
+                        print(f"[CG] Coin list from cache: {len(data)} symbols")
+                        return data
+                except Exception:
+                    pass
+
+            self._rl()
+            try:
+                r = self.s.get(COINGECKO_COINLIST_URL, timeout=30)
+                r.raise_for_status()
+                raw = r.json()
+                lookup = {}
+                for c in raw:
+                    sym = c.get("symbol", "").lower()
+                    if sym and c.get("id"):
+                        if sym not in lookup:
+                            lookup[sym] = {"id": c["id"], "name": c.get("name", ""), "symbol": sym.upper()}
+                for sym, cid in {"btc":"bitcoin","eth":"ethereum","bnb":"binancecoin","sol":"solana","xrp":"ripple","doge":"dogecoin","ada":"cardano","avax":"avalanche-2","dot":"polkadot","matic":"polygon","link":"chainlink","uni":"uniswap","atom":"cosmos","ltc":"litecoin","bch":"bitcoin-cash","trx":"tron","fil":"filecoin","apt":"aptos","sui":"sui","op":"optimism","arb":"arbitrum","pepe":"pepe","inj":"injective-protocol"}.items():
+                    if sym in lookup and lookup[sym]["id"] != cid:
+                        found = [c for c in raw if c.get("id") == cid]
+                        if found:
+                            lookup[sym] = {"id": cid, "name": found[0].get("name", ""), "symbol": sym.upper()}
+                CoinGeckoFetcher._coin_list = lookup
+                try:
+                    COIN_LIST_CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+                    COIN_LIST_CACHE_FILE.write_text(json.dumps(lookup))
+                except Exception:
+                    pass
+                print(f"[CG] Coin list: {len(lookup)} symbols")
+                return lookup
+            except Exception as e:
+                print(f"[CG] Coin list error: {e}")
+                return {}
+
+
+    def _get_volume_growth(self, binance_data):
+        """Fetch 1h K-line volumes, compare vs 24h average hourly volume."""
+        symbols = list(binance_data.keys())
+        if not symbols:
             return {}
+
+        result = {}
+        lock = threading.Lock()
+        now = datetime.now(timezone.utc)
+
+        def fetch_kline(sym):
+            try:
+                r = requests.get(
+                    f"{BINANCE_BASE}/api/v3/klines",
+                    params={"symbol": sym.upper() + "USDT", "interval": "1h", "limit": 25},
+                    timeout=15
+                )
+                r.raise_for_status()
+                data = r.json()
+                if not data or len(data) < 2:
+                    return None
+
+                # data[-1] = current in-progress kline
+                # data[:-1] = 24 completed klines (24h baseline)
+                curr = data[-1]
+
+                # Average hourly volume over last 24 completed hours
+                completed_vols = [float(k[7]) for k in data[:-1] if float(k[7]) > 0]
+                if not completed_vols:
+                    return sym, 1.0
+                baseline = sum(completed_vols) / len(completed_vols)
+
+                # Current hour volume
+                curr_vol = float(curr[7])
+                kline_open = datetime.fromtimestamp(curr[0] / 1000, tz=timezone.utc)
+                mins_past = max((now - kline_open).total_seconds() / 60, 0.1)
+
+                # Estimate full-hour volume, or use raw value in first 5min
+                if mins_past >= 5:
+                    estimated_curr = curr_vol * (60.0 / mins_past)
+                else:
+                    estimated_curr = curr_vol
+
+                if baseline > 0 and estimated_curr > 0:
+                    g = estimated_curr / baseline
+                elif estimated_curr > 0:
+                    g = 1.0
+                else:
+                    g = 0
+
+                return sym, min(g, 50.0)
+            except Exception as e:
+                return None
+
+        with ThreadPoolExecutor(max_workers=30) as pool:
+            futures = [pool.submit(fetch_kline, sym) for sym in symbols]
+            for f in futures:
+                res = f.result()
+                if res:
+                    result[res[0]] = res[1]
+
+        print(f"[Volume] 1h kline vs 24h avg: {len(result)} symbols")
+        return result
+
 
     def _fetch_binance_tickers(self):
         """Fetch all USDT tickers from Binance (free, 1200 req/min)."""
@@ -197,6 +289,10 @@ class CoinGeckoFetcher:
                 sp7 = (coin.get("sparkline_in_7d") or {}).get("price", [])
                 result[cid] = {
                     "thumb": coin.get("image", ""),
+                    "current_price": coin.get("current_price", 0),
+                    "total_volume": coin.get("total_volume", 0),
+                    "price_change_percentage_24h": coin.get("price_change_percentage_24h", 0),
+                    "market_cap": coin.get("market_cap", 0),
                     "sparkline_full": sp7,
                     "sparkline_prices": sp7[-24:] if sp7 else [],
                 }
@@ -252,7 +348,7 @@ class CoinGeckoFetcher:
         return [self._normalize(c) for c in data] if data else []
 
     def fetch_all(self):
-        """Mixed-source: trending (CG) + prices (Binance) + community (CG)."""
+        """Mixed-source: trending (CG) + prices (Binance) + volume growth."""
         coin_list = self._get_coin_list()
 
         trending_basic = self._trending_ids()
@@ -260,10 +356,13 @@ class CoinGeckoFetcher:
 
         binance = self._fetch_binance_tickers()
 
+        # Volume growth
+        growth = self._get_volume_growth(binance)
+
         candidates = []
         seen = set()
 
-        # Priority 1: trending (use Binance prices if available)
+        # Priority 1: trending (use Binance data + growth)
         if trending_basic:
             n = len(trending_basic)
             for pos, tb in enumerate(trending_basic):
@@ -283,6 +382,7 @@ class CoinGeckoFetcher:
                     "total_volume": bd["volume"] if bd else 0,
                     "price_change_percentage_24h": bd["change"] if bd else 0,
                     "market_cap": self._estimate_mcap(bd["price"] if bd else 0, bd["volume"] if bd else 0),
+                    "volume_growth": growth.get(sym, 1.0) if bd and growth.get(sym, 0) > 0 else 1.0,
                     "sparkline_full": [],
                     "sparkline_prices": [],
                     "momentum_score": 0,
@@ -293,9 +393,11 @@ class CoinGeckoFetcher:
                 candidates.append(coin)
                 seen.add(cid)
 
-        # Priority 2: fill with top Binance coins by volume
-        sorted_pairs = sorted(binance.items(), key=lambda x: x[1]["volume"], reverse=True)
-        for base_sym, bd in sorted_pairs:
+        # Priority 2: fill by volume growth descending
+        scored = [(base_sym, bd, growth.get(base_sym, 1.0)) for base_sym, bd in binance.items()]
+        scored.sort(key=lambda x: x[2], reverse=True)
+
+        for base_sym, bd, gr in scored:
             if len(candidates) >= 100:
                 break
             cl = coin_list.get(base_sym)
@@ -312,6 +414,7 @@ class CoinGeckoFetcher:
                 "market_cap_rank": len(candidates) + 1,
                 "trending_score": max(0, 80 - len(candidates)),
                 "thumb": self._symbol_thumb(base_sym),
+                "volume_growth": gr,
                 "current_price": bd["price"],
                 "total_volume": bd["volume"],
                 "price_change_percentage_24h": bd["change"],
@@ -333,6 +436,14 @@ class CoinGeckoFetcher:
                 e = enrich_data.get(c["id"])
                 if e:
                     c["thumb"] = e["thumb"]
+                    if not c.get("current_price"):
+                        c["current_price"] = e.get("current_price", 0)
+                    if not c.get("total_volume"):
+                        c["total_volume"] = e.get("total_volume", 0)
+                    if not c.get("price_change_percentage_24h"):
+                        c["price_change_percentage_24h"] = e.get("price_change_percentage_24h", 0)
+                    if not c.get("market_cap"):
+                        c["market_cap"] = e.get("market_cap", 0)
                     c["sparkline_full"] = e["sparkline_full"]
                     c["sparkline_prices"] = e["sparkline_prices"]
 
