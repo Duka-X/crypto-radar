@@ -176,6 +176,36 @@ class CoinGeckoFetcher:
             print(f"[Binance] Error: {e}")
             return {}
 
+    def _fetch_coin_markets(self, ids):
+        self._rl()
+        try:
+            params = {
+                "vs_currency": "usd",
+                "ids": ",".join(ids),
+                "order": "market_cap_desc",
+                "per_page": len(ids),
+                "sparkline": "true",
+                "price_change_percentage": "24h",
+            }
+            params["x_cg_demo_api_key"] = self.api_key
+            r = self.s.get(f"{COINGECKO_BASE}/coins/markets", params=params, timeout=45)
+            r.raise_for_status()
+            data = r.json()
+            result = {}
+            for coin in data:
+                cid = coin.get("id", "")
+                sp7 = (coin.get("sparkline_in_7d") or {}).get("price", [])
+                result[cid] = {
+                    "thumb": coin.get("image", ""),
+                    "sparkline_full": sp7,
+                    "sparkline_prices": sp7[-24:] if sp7 else [],
+                }
+            print(f"[CG] Markets enriched: {len(result)} coins")
+            return result
+        except Exception as e:
+            print(f"[CG] Markets fetch error: {e}")
+            return {}
+
     def _symbol_thumb(self, sym):
         return f"https://bin.bnbstatic.com/static/images/coin/{sym.upper()}.png"
 
@@ -269,7 +299,9 @@ class CoinGeckoFetcher:
             if len(candidates) >= 100:
                 break
             cl = coin_list.get(base_sym)
-            cid = cl["id"] if cl else f"binance:{base_sym}"
+            if not cl:
+                continue
+            cid = cl["id"]
             if cid in seen:
                 continue
             cap = self._estimate_mcap(bd["price"], bd["volume"])
@@ -293,6 +325,16 @@ class CoinGeckoFetcher:
             }
             candidates.append(coin)
             seen.add(cid)
+
+        enrich_ids = [c["id"] for c in candidates]
+        if enrich_ids:
+            enrich_data = self._fetch_coin_markets(enrich_ids)
+            for c in candidates:
+                e = enrich_data.get(c["id"])
+                if e:
+                    c["thumb"] = e["thumb"]
+                    c["sparkline_full"] = e["sparkline_full"]
+                    c["sparkline_prices"] = e["sparkline_prices"]
 
         # Reddit mentions
         try:
