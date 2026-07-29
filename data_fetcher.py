@@ -5,9 +5,12 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from reddit_fetcher import RedditFetcher
+from community_fetcher import CommunityFetcher
 
 COINGECKO_BASE = "https://api.coingecko.com/api/v3"
 TRENDING_URL = "https://api.coingecko.com/api/v3/search/trending"
+BINANCE_BASE = "https://api.binance.com"
+COINGECKO_COINLIST_URL = f"{COINGECKO_BASE}/coins/list"
 MENTIONS_FILE = Path(__file__).parent / "data" / "reddit_mentions.json"
 
 
@@ -56,6 +59,7 @@ class CoinGeckoFetcher:
     """Mixed-source fetcher: trending + top gainers + small-cap high-volume."""
 
     def __init__(self):
+        self._coin_list = {}
         self.s = requests.Session()
         self.s.headers.update({
             "Accept": "application/json",
@@ -128,6 +132,58 @@ class CoinGeckoFetcher:
         if mcap > 1e7: return 0.35
         return 0.2
 
+    def _get_coin_list(self):
+        """Fetch CoinGecko coin list for symbol->id mapping (cached)."""
+        if self._coin_list:
+            return self._coin_list
+        self._rl()
+        try:
+            r = self.s.get(COINGECKO_COINLIST_URL, timeout=30)
+            r.raise_for_status()
+            coins = r.json()
+            lookup = {}
+            for c in coins:
+                sym = c.get("symbol", "").lower()
+                if sym and c.get("id"):
+                    if sym not in lookup:
+                        lookup[sym] = {"id": c["id"], "name": c.get("name", ""), "symbol": sym.upper()}
+            self._coin_list = lookup
+            print(f"[CG] Coin list: {len(lookup)} symbols")
+            return lookup
+        except Exception as e:
+            print(f"[CG] Coin list error: {e}")
+            return {}
+
+    def _fetch_binance_tickers(self):
+        """Fetch all USDT tickers from Binance (free, 1200 req/min)."""
+        try:
+            r = requests.get(f"{BINANCE_BASE}/api/v3/ticker/24hr", timeout=30)
+            r.raise_for_status()
+            data = r.json()
+            pairs = {}
+            for t in data:
+                sym = t.get("symbol", "")
+                if sym.endswith("USDT"):
+                    base = sym[:-4].lower()
+                    pairs[base] = {
+                        "price": float(t.get("lastPrice", 0) or 0),
+                        "volume": float(t.get("quoteVolume", 0) or 0),
+                        "change": float(t.get("priceChangePercent", 0) or 0),
+                    }
+            print(f"[Binance] USDT pairs: {len(pairs)}")
+            return pairs
+        except Exception as e:
+            print(f"[Binance] Error: {e}")
+            return {}
+
+    def _symbol_thumb(self, sym):
+        return f"https://bin.bnbstatic.com/static/images/coin/{sym.upper()}.png"
+
+    def _estimate_mcap(self, price, vol):
+        if price > 0 and vol > 0:
+            return vol * 10
+        return 0
+
     def _trending_ids(self):
         data = self._get(TRENDING_URL)
         if not data: return []
@@ -166,91 +222,97 @@ class CoinGeckoFetcher:
         return [self._normalize(c) for c in data] if data else []
 
     def fetch_all(self):
-        """Mixed-source: trending + top gainers + small-cap high-volume.
-        Priority: trending -> top gainers -> small-cap high-vol -> fill by volume.
-        """
-        # 1. Trending
-        trending_basic = self._trending_ids()  # returns list with score field
-        trending_ids = [c["id"] for c in trending_basic if c["id"]]
-        print(f"[CG] Trending IDs: {len(trending_ids)}")
+        """Mixed-source: trending (CG) + prices (Binance) + community (CG)."""
+        coin_list = self._get_coin_list()
 
-        trending_full = self._fetch_by_ids(trending_ids)
-        trending_found = {c["id"] for c in trending_full}
-        print(f"[CG] Trending with market data: {len(trending_full)}")
+        trending_basic = self._trending_ids()
+        print(f"[CG] Trending IDs: {len(trending_basic)}")
 
-        # 2. Broad market
-        market_coins = self._fetch_market_page("volume_desc", 250)
-        print(f"[CG] Market coins: {len(market_coins)}")
+        binance = self._fetch_binance_tickers()
 
-        # 3. Select & deduplicate
-        selected = []
+        candidates = []
         seen = set()
 
-        def _add(coin):
-            cid = coin.get("id", "")
-            if cid and cid not in seen:
-                selected.append(coin)
+        # Priority 1: trending (use Binance prices if available)
+        if trending_basic:
+            n = len(trending_basic)
+            for pos, tb in enumerate(trending_basic):
+                cid = tb.get("id", "")
+                sym = (tb.get("symbol") or "").lower()
+                if not cid:
+                    continue
+                bd = binance.get(sym)
+                coin = {
+                    "id": cid,
+                    "symbol": sym.upper(),
+                    "name": tb.get("name", ""),
+                    "market_cap_rank": 999,
+                    "trending_score": max(5, round(100 - pos * (95 / max(n-1, 1)))),
+                    "thumb": tb.get("thumb", self._symbol_thumb(sym)),
+                    "current_price": bd["price"] if bd else 0,
+                    "total_volume": bd["volume"] if bd else 0,
+                    "price_change_percentage_24h": bd["change"] if bd else 0,
+                    "market_cap": self._estimate_mcap(bd["price"] if bd else 0, bd["volume"] if bd else 0),
+                    "sparkline_full": [],
+                    "sparkline_prices": [],
+                    "momentum_score": 0,
+                    "community_score": 0,
+                    "community_raw": 0,
+                    "reddit_mentions": 0,
+                }
+                candidates.append(coin)
                 seen.add(cid)
 
-        for coin in trending_full:
-            _add(coin)
+        # Priority 2: fill with top Binance coins by volume
+        sorted_pairs = sorted(binance.items(), key=lambda x: x[1]["volume"], reverse=True)
+        for base_sym, bd in sorted_pairs:
+            if len(candidates) >= 100:
+                break
+            cl = coin_list.get(base_sym)
+            cid = cl["id"] if cl else f"binance:{base_sym}"
+            if cid in seen:
+                continue
+            cap = self._estimate_mcap(bd["price"], bd["volume"])
+            coin = {
+                "id": cid,
+                "symbol": base_sym.upper(),
+                "name": cl["name"] if cl else base_sym.upper(),
+                "market_cap_rank": len(candidates) + 1,
+                "trending_score": max(0, 80 - len(candidates)),
+                "thumb": self._symbol_thumb(base_sym),
+                "current_price": bd["price"],
+                "total_volume": bd["volume"],
+                "price_change_percentage_24h": bd["change"],
+                "market_cap": cap,
+                "sparkline_full": [],
+                "sparkline_prices": [],
+                "momentum_score": 0,
+                "community_score": self._community_by_mcap({"market_cap": cap}),
+                "community_raw": 0,
+                "reddit_mentions": 0,
+            }
+            candidates.append(coin)
+            seen.add(cid)
 
-        if len(selected) < 100:
-            gainers = sorted(
-                [c for c in market_coins if c.get("id") not in seen],
-                key=lambda x: x.get("price_change_percentage_24h") or -999,
-                reverse=True,
-            )
-            for coin in gainers:
-                if len(selected) >= 100: break
-                _add(coin)
-
-        if len(selected) < 100:
-            small_cap = sorted(
-                [c for c in market_coins
-                 if c.get("id") not in seen and (c.get("market_cap") or 1e12) < 200_000_000],
-                key=lambda x: x.get("total_volume") or 0,
-                reverse=True,
-            )
-            for coin in small_cap:
-                if len(selected) >= 100: break
-                _add(coin)
-
-        if len(selected) < 100:
-            for coin in market_coins:
-                if len(selected) >= 100: break
-                _add(coin)
-
-        # 4. Reddit
+        # Reddit mentions
         try:
             reddit = RedditFetcher()
-            coin_names = [c.get("name", "") for c in selected if c.get("name")]
-            mentions = reddit.fetch_all_mentions(coin_names)
+            names = [c.get("name", "") for c in candidates if c.get("name")]
+            mentions = reddit.fetch_all_mentions(names)
             _save_mention_snapshot(mentions)
-            for c in selected:
+            for c in candidates:
                 c["reddit_mentions"] = mentions.get(c.get("name", ""), 0)
         except Exception as e:
             print(f"[Reddit] Error: {e}")
 
-                # Override trending_score for trending coins (position-based)
-        if trending_basic:
-            n = len(trending_basic)
-            if n > 1:
-                for pos, tb in enumerate(trending_basic):
-                    for coin in selected:
-                        if coin.get("id") == tb.get("id"):
-                            coin["trending_score"] = max(5, round(100 - pos * (95 / (n - 1))))
-                            break
-
         # Community data (Twitter followers)
         try:
-            CommunityFetcher().update_for_coins(selected)
+            CommunityFetcher().update_for_coins(candidates)
         except Exception as e:
             print(f"[Community] Error: {e}")
 
-        print(f"[CG] Final selection: {len(selected)} coins")
-        return selected
-
+        print(f"[Fetch] Final: {len(candidates)} coins")
+        return candidates
     def fetch_top_prices(self, n=100):
         """Alias for backward compatibility."""
         return self.fetch_all()[:n]
