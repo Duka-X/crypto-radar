@@ -271,21 +271,47 @@ async def index(request: Request):
 
 @app.post("/refresh")
 async def refresh_data():
-    asyncio.create_task(_run_refresh_now())
-    return {"status": "ok", "message": "refresh started"}
+    return {
+        "status": "ok",
+        "message": "data auto-refreshes in background",
+        "last_refresh": _last_refresh_time.isoformat() if _last_refresh_time else None,
+    }
 
-async def _run_refresh_now():
+async def _run_refresh_now(full: bool = True):
+    """Full refresh every 5 min; incremental volume update every 1 min."""
     global _last_refresh_time
-    try:
-        fetcher = CoinGeckoFetcher()
-        scorer = SignalScorer()
-        raw = await asyncio.to_thread(fetcher.fetch_all)
-        if raw:
-            coins = scorer.score(raw)
+    if _refresh_lock.locked():
+        return
+    async with _refresh_lock:
+        try:
+            fetcher = CoinGeckoFetcher()
+            scorer = SignalScorer()
+            if full:
+                raw = await asyncio.to_thread(fetcher.fetch_all)
+                if not raw:
+                    return
+                coins = raw
+            else:
+                coins = load_latest_snapshot()
+                if not coins:
+                    return
+                syms = {}
+                for c in coins[:50]:
+                    sym = str(c.get("symbol", "")).lower()
+                    if sym:
+                        syms[sym] = {}
+                if syms:
+                    growth = await asyncio.to_thread(fetcher._get_volume_growth, syms)
+                    for c in coins:
+                        sym = str(c.get("symbol", "")).lower()
+                        if sym in growth:
+                            c["volume_growth"] = growth[sym]
+            coins = scorer.score(coins)
             save_snapshot(coins)
             _last_refresh_time = datetime.now(timezone.utc)
-    except Exception as e:
-        print(f"[Refresh] Error: {e}")
+            print(f"[Refresh] {'Full' if full else 'Incremental'} at {_last_refresh_time}")
+        except Exception as e:
+            print(f"[Refresh] Error: {e}")
 
 
 @app.get("/api/last-refresh")
@@ -518,7 +544,8 @@ if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
 _last_refresh_time = None
-_BACKGROUND_INTERVAL = 3600
+_BACKGROUND_INTERVAL = 300
+_refresh_lock = asyncio.Lock()
 
 
 @app.get("/daily-post", response_class=HTMLResponse)
@@ -550,26 +577,15 @@ async def compare_page(request: Request, coins: str):
 
 
 async def _background_refresher():
-    global _last_refresh_time
     while True:
         try:
-            fetcher = CoinGeckoFetcher()
-            scorer = SignalScorer()
-            raw = await asyncio.to_thread(fetcher.fetch_all)
-            if raw:
-                coins = scorer.score(raw)
-                save_snapshot(coins)
-                _last_refresh_time = datetime.now(timezone.utc)
-                print(f"[Background] Refreshed at {_last_refresh_time}")
-            else:
-                await asyncio.sleep(300)
-                continue
+            await _run_refresh_now(full=True)
+            for _ in range(4):
+                await asyncio.sleep(60)
+                await _run_refresh_now(full=False)
         except Exception as e:
             print(f"[Background] Error: {e}")
-            await asyncio.sleep(300)
-            continue
-        print(f"[Background] Next refresh in 1 hour")
-        await asyncio.sleep(_BACKGROUND_INTERVAL)
+            await asyncio.sleep(60)
 
 def get_token_history(token_id: str, limit: int = 100) -> list[dict]:
     conn = sqlite3.connect(str(DB_PATH))

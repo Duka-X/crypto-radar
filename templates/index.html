@@ -165,46 +165,14 @@
     async function refreshData() {
         var btn = document.getElementById("refresh-btn");
         var toast = document.getElementById("refresh-toast");
-        var curTime = document.getElementById("refresh-time").textContent;
         btn.disabled = true;
         btn.textContent = "Refreshing...";
         toast.classList.remove("hidden");
-        toast.textContent = "Refreshing data...";
+        toast.textContent = "Reloading latest data...";
         try {
-            var resp = await fetch("/refresh", { method: "POST" });
-            var data = await resp.json();
-            if (data.status === "ok") {
-                pollRefresh(curTime, 0);
-            } else {
-                toast.textContent = "Error: " + (data.message || "Unknown");
-                btn.disabled = false;
-                btn.textContent = "Refresh";
-                setTimeout(function() { toast.classList.add("hidden"); }, 4000);
-            }
-        } catch (e) {
-            toast.textContent = "Network error. Try again.";
-            btn.disabled = false;
-            btn.textContent = "Refresh";
-            setTimeout(function() { toast.classList.add("hidden"); }, 4000);
-        }
-    }
-    function pollRefresh(oldTime, attempt) {
-        if (attempt > 30) { location.reload(); return; }
-        var toast = document.getElementById("refresh-toast");
-        toast.textContent = "Refreshing" + ".".repeat((attempt%3)+1) + "  (" + (attempt*2) + "s)";
-        fetch("/api/last-refresh")
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (data.last_refresh && data.last_refresh.indexOf(oldTime) < 0) {
-                    toast.textContent = "Refreshed! Reloading...";
-                    setTimeout(function() { location.reload(); }, 500);
-                } else {
-                    setTimeout(function() { pollRefresh(oldTime, attempt+1); }, 2000);
-                }
-            })
-            .catch(function() {
-                setTimeout(function() { pollRefresh(oldTime, attempt+1); }, 2000);
-            });
+            await fetch("/refresh", { method: "POST" });
+        } catch (e) {}
+        setTimeout(function() { location.reload(); }, 500);
     }
     </script>
 </body>
