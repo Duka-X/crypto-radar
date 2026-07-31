@@ -43,6 +43,8 @@ class SignalScorer:
         rm = [self._momentum(c.get("sparkline_full",[]) or c.get("sparkline_prices",[])) for c in coins]
         # Pure volume growth signal (ignoring absolute volume)
         rv = [max(self._f(c.get("volume_growth", 1.0)) - 1.0, 0) for c in coins]
+        # Log-scale so a single extreme growth coin doesn't crush the rest
+        rv = [m.log(1 + x) for x in rv]
         nt = self._n(rt); ntv = self._n(rtv); np_ = self._n(rp)
         nm = self._n(rm); nv = self._n(rv)
         scored = []
