@@ -6,6 +6,15 @@
 <link rel=stylesheet href=/static/style.css>
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-33MYYVE2Y4"></script>
 <script>window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag("js",new Date());gtag("config","G-33MYYVE2Y4");</script>
+<link rel="canonical" href="https://cryptoradar.dev{{ request.url.path }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="CryptoRadar">
+    <meta property="og:url" content="https://cryptoradar.dev{{ request.url.path }}">
+    <meta property="og:title" content="{{ page_title or 'CryptoRadar - Multi-Signal Crypto Ranking' }}">
+    <meta property="og:description" content="{{ page_description or 'CryptoRadar ranks cryptocurrencies with multi-signal scoring: Trending, Price Action, Momentum, and Volume.' }}">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ page_title or 'CryptoRadar - Multi-Signal Crypto Ranking' }}">
+    <meta name="twitter:description" content="{{ page_description or 'CryptoRadar ranks cryptocurrencies with multi-signal scoring: Trending, Price Action, Momentum, and Volume.' }}">
 </head><body>
 <header class=header><div class=container><div class=header-top><a href=/ class=logo>CryptoRadar<span class=logo-dot>.</span></a></div>
 <h1 style="font-size:1.3rem">{{ coin1.name if coin1 else t1_id|capitalize }} vs {{ coin2.name if coin2 else t2_id|capitalize }}</h1></div></header>

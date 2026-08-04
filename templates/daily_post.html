@@ -27,6 +27,15 @@ h1{font-size:1.3rem;margin-bottom:.2rem}
 .dp-change { font-size:12px; font-weight:600; min-width:50px; text-align:right; }
 .dp-spark { flex-shrink:0; }
 </style>
+<link rel="canonical" href="https://cryptoradar.dev{{ request.url.path }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="CryptoRadar">
+    <meta property="og:url" content="https://cryptoradar.dev{{ request.url.path }}">
+    <meta property="og:title" content="{{ page_title or 'CryptoRadar - Multi-Signal Crypto Ranking' }}">
+    <meta property="og:description" content="{{ page_description or 'CryptoRadar ranks cryptocurrencies with multi-signal scoring: Trending, Price Action, Momentum, and Volume.' }}">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ page_title or 'CryptoRadar - Multi-Signal Crypto Ranking' }}">
+    <meta name="twitter:description" content="{{ page_description or 'CryptoRadar ranks cryptocurrencies with multi-signal scoring: Trending, Price Action, Momentum, and Volume.' }}">
 </head><body>
 <div class=container>
 <a href=/ class=back-link>&larr; Home</a>

@@ -23,6 +23,15 @@
 .bar-fill.red { background: linear-gradient(90deg, #b91c1c, #ef4444); }
 .bar-fill.pink { background: linear-gradient(90deg, #a21caf, #d946ef); }
 </style>
+<link rel="canonical" href="https://cryptoradar.dev/token/{{ token_id }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="CryptoRadar">
+    <meta property="og:url" content="https://cryptoradar.dev/token/{{ token_id }}">
+    <meta property="og:title" content="{% if token %}{{ token.name }} ({{ token.symbol }}) - CryptoRadar{% else %}CryptoRadar{% endif %}">
+    <meta property="og:description" content="CryptoRadar signal ranking for {% if token %}{{ token.name }} ({{ token.symbol }}){% else %}this token{% endif %}: trending, price action, momentum, and volume scores.">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{% if token %}{{ token.name }} ({{ token.symbol }}) - CryptoRadar{% else %}CryptoRadar{% endif %}">
+    <meta name="twitter:description" content="CryptoRadar signal ranking for {% if token %}{{ token.name }} ({{ token.symbol }}){% else %}this token{% endif %}.">
 </head>
 <body>
     <header class="header">

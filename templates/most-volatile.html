@@ -6,7 +6,16 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>Trending Cryptocurrencies — CryptoRadar</title>
 <meta name="description" content="Top trending cryptocurrencies ranked by signal score. Real-time multi-signal analysis of hot tokens.">
-<link rel=stylesheet href=/static/style.css></head>
+<link rel=stylesheet href=/static/style.css><link rel="canonical" href="https://cryptoradar.dev{{ request.url.path }}">
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="CryptoRadar">
+    <meta property="og:url" content="https://cryptoradar.dev{{ request.url.path }}">
+    <meta property="og:title" content="{{ page_title or 'CryptoRadar - Multi-Signal Crypto Ranking' }}">
+    <meta property="og:description" content="{{ page_description or 'CryptoRadar ranks cryptocurrencies with multi-signal scoring: Trending, Price Action, Momentum, and Volume.' }}">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="{{ page_title or 'CryptoRadar - Multi-Signal Crypto Ranking' }}">
+    <meta name="twitter:description" content="{{ page_description or 'CryptoRadar ranks cryptocurrencies with multi-signal scoring: Trending, Price Action, Momentum, and Volume.' }}">
+</head>
 <body><header class=header><div class=container><div class=header-top><nav class=breadcrumb><a href=/>Home</a><span class=sep>/</span><span class=current>Trending</span></nav>
 <h1 class=logo>Trending<span class=logo-dot>.</span></h1></div></div></header>
 <main class=container><section class=rankings><div class=table-wrapper><table><thead><tr><th class=col-rank>#</th><th class=col-coin>Coin</th><th class=col-price>Price</th><th class=col-change>24h%</th><th class=col-sparkle>Chart</th><th class=col-score>Score</th></tr></thead><tbody>
