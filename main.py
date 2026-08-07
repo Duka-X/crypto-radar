@@ -290,10 +290,22 @@ async def _run_refresh_now(full: bool = True):
                 raw = await asyncio.to_thread(fetcher.fetch_all)
                 if not raw:
                     return
+                # Carry over previous volume_growth during first 5 min of an hour
+                if datetime.now(timezone.utc).minute < 5:
+                    prev = load_latest_snapshot() or []
+                    prev_map = {c.get("id"): c.get("volume_growth", 1.0) for c in prev}
+                    for c in raw:
+                        cid = c.get("id")
+                        if cid in prev_map:
+                            c["volume_growth"] = prev_map[cid]
                 coins = raw
             else:
                 coins = load_latest_snapshot()
                 if not coins:
+                    return
+                # Skip incremental volume update in first 5 min of an hour
+                if datetime.now(timezone.utc).minute < 5:
+                    print("[Refresh] Skipping incremental (new hour)")
                     return
                 syms = {}
                 for c in coins[:50]:

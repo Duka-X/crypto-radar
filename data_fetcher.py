@@ -186,6 +186,10 @@ class CoinGeckoFetcher:
         symbols = list(binance_data.keys())
         if not symbols:
             return {}
+        # New 1h kline starts at zero; skip unstable first 5 minutes of the hour
+        if datetime.now(timezone.utc).minute < 5:
+            print("[Volume] Skipping kline update (new hour, first 5 min)")
+            return {}
 
         result = {}
         lock = threading.Lock()
